@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Yorbil">
+<meta name="theme-color" content="#2ec87a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Yorbil</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--ff:'DM Sans',system-ui,sans-serif;--fm:'DM Mono',monospace;}
+body{
+  --bg:#0a0e1a;--bg2:#111624;--bg3:#181f33;--bg4:#1e2840;
+  --border:#232f4a;--border2:#2e3f64;
+  --text:#eef2ff;--text2:#a0aec8;--text3:#5a6a90;
+  --blue:#4a9fff;--blue-d:#07142a;--blue-t:#8ac4ff;
+  --green:#2ec87a;--green-d:#061a10;--green-t:#5ddea4;
+  --red:#e05555;--red-d:#200a0a;--red-t:#f08888;
+  --amber:#e09a1a;--amber-d:#1f1200;--amber-t:#f0c040;
+  --purple:#8b5cf6;--purple-d:#130828;--purple-t:#b794ff;
+  --teal:#0fb8a0;--teal-d:#041614;--teal-t:#4dd4c0;
+  background:var(--bg);color:var(--text);font-family:var(--ff);font-size:14px;
+}
+body.light{
+  /* Page bg — dark slate, cards pop hard */
+  --bg:#8896b0;--bg2:#ffffff;--bg3:#f0f2f8;--bg4:#dce2f0;
+  /* Borders — very visible */
+  --border:#5a6a88;--border2:#3a4a68;
+  /* Text — true near-black */
+  --text:#04070f;--text2:#141e36;--text3:#28385a;
+  /* Blue */
+  --blue:#0e38a0;--blue-d:#b8ccff;--blue-t:#072880;
+  /* Green */
+  --green:#065e28;--green-d:#b8e8c8;--green-t:#03401a;
+  /* Red */
+  --red:#980e0e;--red-d:#f8c0c0;--red-t:#680606;
+  /* Amber */
+  --amber:#784000;--amber-d:#fae0a8;--amber-t:#542800;
+  /* Purple */
+  --purple:#3a06a8;--purple-d:#d8c8ff;--purple-t:#260480;
+  /* Teal */
+  --teal:#045848;--teal-d:#b0e8d8;--teal-t:#023830;
+}
+html,body{height:100%;overflow:hidden;}
+#root{height:100%;display:flex;flex-direction:column;max-width:520px;margin:0 auto}
+.nav{display:flex;background:var(--bg2);border-top:0.5px solid var(--border);padding:6px 8px;padding-bottom:max(6px,env(safe-area-inset-bottom));gap:2px;flex-shrink:0;order:2}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;border:none;background:none;color:var(--text3);cursor:pointer;border-radius:8px;font-family:var(--ff);transition:all .15s}
+.nav-btn .icon{font-size:18px;line-height:1}
+.nav-btn .lbl{font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.nav-btn.active{color:var(--blue);background:var(--blue-d)}
+body.light .nav-btn.active{color:#fff;background:var(--blue)}
+body.light .btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+body.light .btn.sm.primary{background:#1a6fd4;color:#fff;border-color:#1a6fd4}
+body.light .nav-btn{color:var(--text3)}
+body.light .card-hd-t{color:var(--text2)}
+body.light .sec-lbl{color:var(--text);font-weight:800}
+body.light .card{box-shadow:0 4px 16px rgba(0,0,0,.22);border:1.5px solid var(--border2)}
+body.light .metric{background:#dfe6f5;border:1.5px solid var(--border)}
+body.light .wb{box-shadow:0 4px 16px rgba(0,0,0,.25);border:1.5px solid var(--border2)}
+body.light .leftover-row{background:#d0daf5;border-top:2px solid var(--border2)}
+body.light .rollover{background:#e0f5f0;border-color:var(--teal)}
+body.light .overspend{background:#fde8e8;border-color:var(--red)}
+body.light .pg-hdr{background:var(--bg);border-bottom:2px solid var(--border2)}
+body.light .wb-hd{background:#ffffff;border-bottom:2px solid var(--border2)}
+body.light .card-hd{background:#eaeff8;border-bottom:1px solid var(--border)}
+body.light .lc{background:#fff;border:1px solid var(--border2);box-shadow:0 3px 10px rgba(0,0,0,.14)}
+body.light .gc{background:#fff;border:1px solid var(--border2);box-shadow:0 3px 10px rgba(0,0,0,.14)}
+body.light .pb{background:#b8c8e0}
+body.light .row{border-bottom-color:var(--border)}
+body.light .sec-lbl{color:var(--text);font-size:12px;font-weight:800}
+body.light .nav{background:#dde4f4;border-top:3px solid var(--border2)}
+body.light .card-hd-t{font-weight:800}
+body.light input,body.light select{background:#fff;border-color:var(--border2);color:var(--text)}
+body.light .tog{background:#c8d0e0;border-color:#8a98b8}
+body.light .tog.on{background:#16a34a;border-color:#16a34a}
+body.light .tog-dot{background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+body.light .btn-icon{border-color:var(--border2);color:var(--text2)}
+body.light .btn{border-color:var(--border2);color:var(--text)}
+body.light .lc{background:#fff;border-color:var(--border)}
+body.light .gc{background:#fff;border-color:var(--border)}
+body.light .wb-dates{color:var(--text3)}
+body.light .row-sub{color:var(--text3)}
+body.light .m-lbl{color:var(--text2)}
+body.light .empty{color:var(--text3)}
+body.light .pb{background:#d4daf0}
+body.light .sched td{color:var(--text)}
+body.light .status-row{color:var(--text2)}
+.content{flex:1;overflow-y:auto;overflow-x:hidden;order:1;padding-bottom:8px}
+.content::-webkit-scrollbar{width:0}
+.pg-hdr{padding:14px 14px 10px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg);z-index:10;border-bottom:0.5px solid var(--border)}
+.pg-title{font-size:20px;font-weight:700;color:var(--text)}
+.pg-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.sec-lbl{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text);padding:14px 14px 6px}
+.card{background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;margin:6px 14px;overflow:hidden}
+.card-p{padding:14px}
+.card-hd{padding:11px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:0.5px solid var(--border)}
+.card-hd-t{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text2)}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px}
+.metric{background:var(--bg3);border-radius:10px;padding:12px}
+.m-lbl{font-size:11px;font-weight:500;color:var(--text2);margin-bottom:4px}
+.m-val{font-size:20px;font-weight:600;font-family:var(--fm);letter-spacing:-.5px;color:var(--text)}
+.m-val.g{color:var(--green-t)}.m-val.r{color:var(--red-t)}.m-val.b{color:var(--blue-t)}.m-val.a{color:var(--amber-t)}.m-val.p{color:var(--purple-t)}.m-val.t{color:var(--teal-t)}
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:0.5px solid var(--border);gap:8px}
+.row:last-child{border-bottom:none}
+.row-l{flex:1;min-width:0}
+.row-lbl{font-size:13px;font-weight:500;color:var(--text)}
+.row-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.row-r{text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.row-amt{font-size:14px;font-weight:600;font-family:var(--fm);color:var(--text)}
+.pill{display:inline-flex;align-items:center;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:700}
+.p-g{background:var(--green-d);color:var(--green-t)}.p-r{background:var(--red-d);color:var(--red-t)}
+.p-a{background:var(--amber-d);color:var(--amber-t)}.p-b{background:var(--blue-d);color:var(--blue-t)}
+.p-gray{background:var(--bg4);color:var(--text2)}.p-p{background:var(--purple-d);color:var(--purple-t)}
+.p-t{background:var(--teal-d);color:var(--teal-t)}
+.btn{padding:8px 16px;font-size:13px;font-weight:500;border:0.5px solid var(--border2);border-radius:9px;background:transparent;color:var(--text);cursor:pointer;font-family:var(--ff);transition:all .15s;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn.danger{color:var(--red-t);border-color:var(--red-d)}
+.btn.sm{padding:4px 10px;font-size:11px;font-weight:600}
+.btn-icon{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:0.5px solid var(--border);border-radius:8px;background:transparent;color:var(--text2);cursor:pointer;font-size:14px;flex-shrink:0;font-family:var(--ff)}
+.btn-icon:active{background:var(--bg3)}
+.tog{width:40px;height:24px;border-radius:99px;background:var(--bg4);border:0.5px solid var(--border2);cursor:pointer;position:relative;display:inline-block;flex-shrink:0;transition:background .2s}
+.tog.on{background:var(--green);border-color:var(--green)}
+.tog-dot{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;pointer-events:none}
+.tog.on .tog-dot{transform:translateX(16px)}
+.ff{margin-bottom:12px}
+.ff label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:.04em;text-transform:uppercase}
+input,select{background:var(--bg3);border:0.5px solid var(--border2);border-radius:9px;padding:9px 12px;font-size:14px;color:var(--text);font-family:var(--ff);outline:none;width:100%;-webkit-appearance:none;transition:border-color .15s}
+input:focus,select:focus{border-color:var(--blue)}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}
+.modal-box{background:var(--bg2);border:0.5px solid var(--border2);border-radius:18px;width:100%;max-width:400px;max-height:88vh;overflow-y:auto;padding:20px 16px}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:16px;color:var(--text)}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.pb{height:5px;background:var(--bg4);border-radius:99px;overflow:hidden;margin:6px 0}
+.pb-fill{height:100%;border-radius:99px;background:var(--green);transition:width .4s}
+.wb{margin:6px 14px;border:0.5px solid var(--border);border-radius:14px;overflow:hidden}
+.wb-hd{padding:12px 14px;display:flex;justify-content:space-between;align-items:center}
+.wb-title{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+.wb-dates{font-size:11px;color:var(--text2)}
+.rollover{background:var(--teal-d);border:0.5px solid var(--teal);border-radius:9px;margin:6px 14px 0;padding:8px 12px;font-size:12px;color:var(--teal-t);display:flex;align-items:center;gap:6px}
+.overspend{background:var(--red-d);border:0.5px solid var(--red);border-radius:9px;margin:6px 14px 0;padding:8px 12px;font-size:12px;color:var(--red-t)}
+.leftover-row{padding:14px;display:flex;justify-content:space-between;align-items:center;background:var(--bg3)}
+.leftover-lbl{font-size:13px;font-weight:600;color:var(--text)}
+.leftover-amt{font-size:26px;font-weight:700;font-family:var(--fm);letter-spacing:-1px}
+.lc{margin:6px 14px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px}
+.lc-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.lc-name{font-size:15px;font-weight:700;color:var(--text)}
+.lc-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.lc-bal{text-align:right}
+.lc-cur{font-size:22px;font-weight:700;font-family:var(--fm);color:var(--red-t)}
+.lc-orig{font-size:11px;color:var(--text3);margin-top:2px}
+.gc{margin:6px 14px;background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px}
+.sched{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.sched th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);padding:4px 6px;border-bottom:0.5px solid var(--border)}
+.sched td{padding:6px 6px;border-bottom:0.5px solid var(--border);font-family:var(--fm);color:var(--text)}
+.sched tr:last-child td{border-bottom:none}
+.ob{position:fixed;inset:0;background:var(--bg);z-index:2000;overflow-y:auto}
+.ob-inner{padding:32px 20px;max-width:480px;margin:0 auto;min-height:100%}
+.ob-progress{display:flex;gap:4px;margin-bottom:28px}
+.ob-dot{height:3px;flex:1;border-radius:99px;background:var(--border2)}
+.ob-dot.done{background:var(--blue)}.ob-dot.active{background:var(--blue-t)}
+.ob-title{font-size:26px;font-weight:700;color:var(--text);line-height:1.2;margin-bottom:8px}
+.ob-sub{font-size:14px;color:var(--text2);line-height:1.5;margin-bottom:20px}
+.ob-nav{display:flex;justify-content:space-between;align-items:center;margin-top:24px;gap:10px}
+.alert-info{background:var(--blue-d);color:var(--blue-t);border:0.5px solid var(--blue);padding:10px 14px;border-radius:10px;font-size:13px;margin:0 14px 8px}
+.empty{padding:28px 14px;text-align:center;color:var(--text3);font-size:13px}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;transition:background .3s}
+.sdot.saving{background:var(--amber)}
+.status-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;color:var(--text2)}
+@media(min-width:520px){#root{border-left:0.5px solid var(--border);border-right:0.5px solid var(--border)}}
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="content" id="content"></div>
+  <nav class="nav" id="nav" style="display:none"></nav>
+</div>
+<div id="ob" class="ob" style="display:none"></div>
+
+<script>
+'use strict';
+
+// ── Core date helpers — defined first so STORAGE module can use them ──────────
+const today   = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+};
+const addDays = (d,n) => {
+  const dt = new Date(d+'T00:00:00');
+  dt.setDate(dt.getDate()+n);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth()+1).padStart(2,'0');
+  const day = String(dt.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STORAGE MODULE
+// ══════════════════════════════════════════════════════════════════════════════
+const STORAGE = (function() {
+  const PROD_KEY   = 'yorbil_v1';
+  const BACKUP_PFX = 'yorbil_backup_';
+  const SCHEMA_VER = 2;
+
+  function applyDefaults(obj, defaults) {
+    const result = Object.assign({}, obj);
+    Object.keys(defaults).forEach(k => {
+      if (result[k] === undefined || result[k] === null) {
+        result[k] = typeof defaults[k] === 'object' && !Array.isArray(defaults[k])
+          ? Object.assign({}, defaults[k]) : defaults[k];
+      }
+    });
+    return result;
+  }
+
+  function backup(data) {
+    const key = BACKUP_PFX + Date.now();
+    try {
+      localStorage.setItem(key, typeof data === 'string' ? data : JSON.stringify(data));
+      const all = Object.keys(localStorage).filter(k => k.startsWith(BACKUP_PFX)).sort();
+      while (all.length > 5) localStorage.removeItem(all.shift());
+      return key;
+    } catch(e) { return null; }
+  }
+
+  function migrateV1(old) {
+    const data = old.data || old;
+    return {
+      version: 2, onboarded: data.onboarded || false, theme: data.theme || 'dark',
+      nid: data.nid || 100, lastSaved: null,
+      settings: applyDefaults(data.settings || {}, { householdName:'', incomes:[], sharedAllocs:[] }),
+      bills: data.bills || [], variables: data.variables || [],
+      oneoffs: data.oneoffs || [], loans: data.loans || [],
+      goals: data.goals || [], leaks: data.leaks || [],
+    };
+  }
+
+  function load() {
+    let rawStr;
+    try { rawStr = localStorage.getItem(PROD_KEY); } catch(e) { return null; }
+    if (!rawStr) return null;
+    let parsed;
+    try { parsed = JSON.parse(rawStr); } catch(e) { backup(rawStr); return null; }
+    if (!parsed.version || parsed.version < SCHEMA_VER) { backup(rawStr); parsed = migrateV1(parsed); }
+    parsed = applyDefaults(parsed, {
+      version: SCHEMA_VER, onboarded: false, theme: 'dark', nid: 100, lastSaved: null,
+      settings: { householdName:'', incomes:[], sharedAllocs:[] },
+      bills:[], variables:[], oneoffs:[], loans:[], goals:[], leaks:[]
+    });
+    if (Array.isArray(parsed.settings.incomes)) {
+      parsed.settings.incomes = parsed.settings.incomes.map(inc =>
+        applyDefaults(inc, {
+          id:0, name:'', cycleStart: today(), cycleEnd: addDays(today(),6),
+          cycleType:'FORTNIGHTLY', amount:0, bank:0, alloc:0, color:'#4a9fff'
+        })
+      );
+    }
+    if (Array.isArray(parsed.bills)) {
+      parsed.bills = parsed.bills.map(b =>
+        applyDefaults(b, {
+          id:0, name:'', freq:'MONTHLY', amount:0, lastDue:null,
+          paidHistory:[], include:true, missed:false, pinned:false
+        })
+      );
+    }
+    return parsed;
+  }
+
+  function save(state) {
+    state.version = SCHEMA_VER; state.lastSaved = new Date().toISOString();
+    try { localStorage.setItem(PROD_KEY, JSON.stringify(state)); return true; } catch(e) { return false; }
+  }
+
+  function exportJSON(state) {
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'yorbil-backup-' + today() + '.json'; a.click();
+  }
+
+  function importJSON(onSuccess, onError) {
+    const inp = document.createElement('input'); inp.type='file'; inp.accept='.json';
+    inp.onchange = e => {
+      const file = e.target.files[0]; if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        let parsed; try { parsed = JSON.parse(ev.target.result); } catch(err) { onError('Invalid JSON file.'); return; }
+        if (!parsed.bills && !parsed.settings) { onError('Not a Yorbil backup file.'); return; }
+        backup(localStorage.getItem(PROD_KEY));
+        if (!parsed.version || parsed.version < SCHEMA_VER) parsed = migrateV1(parsed);
+        onSuccess(parsed);
+      };
+      reader.readAsText(file);
+    }; inp.click();
+  }
+
+  function storageStatus() {
+    const raw = localStorage.getItem(PROD_KEY);
+    const size = raw ? (raw.length/1024).toFixed(1)+'KB' : '—';
+    const backups = Object.keys(localStorage).filter(k=>k.startsWith(BACKUP_PFX)).sort().reverse()
+      .map(k=>({key:k, ts:parseInt(k.replace(BACKUP_PFX,''))}));
+    return { size, backups };
+  }
+
+  return { load, save, exportJSON, importJSON, backup, storageStatus, SCHEMA_VER };
+})();
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════════════════
+const DAYS_F = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const FREQS  = ['WEEKLY','FORTNIGHTLY','MONTHLY','QUARTERLY','YEARLY'];
+const COLORS = ['#4a9fff','#8b5cf6','#0fb8a0','#e09a1a','#e05555','#2ec87a'];
+
+let S = null, NID = 100, BILL_SEARCH = '';
+const nid = () => NID++;
+
+function blankState() {
+  return { version:2, onboarded:false, theme:'dark', nid:100, lastSaved:null,
+    settings:{ householdName:'', incomes:[], sharedAllocs:[] },
+    bills:[], variables:[], oneoffs:[], loans:[], goals:[], leaks:[] };
+}
+
+let saveDot, saveTimer;
+function autoSave() {
+  if (saveDot) saveDot.style.background='var(--amber)';
+  clearTimeout(saveTimer); S.nid = NID;
+  saveTimer = setTimeout(() => { STORAGE.save(S); if(saveDot) saveDot.style.background='var(--green)'; }, 600);
+}
+
+// ── Date helpers ──────────────────────────────────────────────────────────────
+const $       = id => document.getElementById(id);
+const fmt     = n => '$'+Math.abs(+n||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtD    = d => { if(!d)return'—'; return new Date(d+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'}); };
+const fmtDY   = d => { if(!d)return'—'; return new Date(d+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}); };
+// today() and addDays() defined at top of script
+const addMonths = (d,n) => {
+  const dt = new Date(d+'T00:00:00');
+  dt.setMonth(dt.getMonth()+n);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth()+1).padStart(2,'0');
+  const day = String(dt.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+};
+const daysBetween = (a,b) => Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/864e5);
+
+// ── Person window — uses explicit cycleStart / cycleEnd set by user ───────────
+function personWindow(person) {
+  return { start: person.cycleStart || today(), end: person.cycleEnd || addDays(today(),6) };
+}
+
+// ── Bill helpers ──────────────────────────────────────────────────────────────
+function nextDue(b) {
+  if (!b.lastDue) return null;
+  if (b.freq==='WEEKLY')      return addDays(b.lastDue,7);
+  if (b.freq==='FORTNIGHTLY') return addDays(b.lastDue,14);
+  if (b.freq==='MONTHLY')     return addMonths(b.lastDue,1);
+  if (b.freq==='QUARTERLY')   return addMonths(b.lastDue,3);
+  if (b.freq==='YEARLY')      return addMonths(b.lastDue,12);
+  return null;
+}
+
+function advanceOne(freq, d) {
+  if (freq==='WEEKLY')      return addDays(d,7);
+  if (freq==='FORTNIGHTLY') return addDays(d,14);
+  if (freq==='MONTHLY')     return addMonths(d,1);
+  if (freq==='QUARTERLY')   return addMonths(d,3);
+  if (freq==='YEARLY')      return addMonths(d,12);
+  return d;
+}
+
+function billOccurrenceInWindow(b, ws, we) {
+  if (!b.lastDue) return null;
+  let d = b.lastDue;
+  for (let i = 0; i < 500; i++) {
+    if (d > we) break;
+    if (d >= ws) return d;
+    d = advanceOne(b.freq, d);
+  }
+  return null;
+}
+
+// Count how many cycles missed since lastDue
+function missedCycles(b) {
+  if (!b.lastDue) return 0;
+  const t = today();
+  let d = b.lastDue, count = 0;
+  for (let i = 0; i < 500; i++) {
+    const next = advanceOne(b.freq, d);
+    if (next > t) break;
+    count++; d = next;
+  }
+  return count;
+}
+
+function billsInWindow(ws, we) {
+  const items = [];
+  S.bills.filter(b => b.include && !b.missed).forEach(b => {
+    const nd = billOccurrenceInWindow(b, ws, we);
+    if (nd) items.push({ name:b.name, nd, amount:b.amount, type:'bill', id:b.id });
+  });
+  S.variables.filter(v => v.inDueList).forEach(v => {
+    const wkAmt = weeklyAmt(v);
+    if (wkAmt > 0) {
+      const target = v.dayOfWeek || 1;
+      for (let i = 0; i <= 7; i++) {
+        const dt = new Date(ws+'T00:00:00'); dt.setDate(dt.getDate()+i);
+        const d = dt.toISOString().split('T')[0];
+        if (d > we) break;
+        if (dt.getDay() === target) { items.push({ name:v.name, nd:d, amount:wkAmt, type:'var', id:v.id }); break; }
+      }
+    }
+  });
+  S.oneoffs.filter(o => o.include && o.due && o.due >= ws && o.due <= we)
+    .forEach(o => items.push({ name:o.name, nd:o.due, amount:o.amount, type:'oneoff', id:o.id, displayOnly:true }));
+  return items.sort((a,b) => a.nd.localeCompare(b.nd));
+}
+
+function weeklyAmt(v) {
+  if (v.freq==='WEEKLY')      return v.amount;
+  if (v.freq==='FORTNIGHTLY') return v.amount/2;
+  if (v.freq==='MONTHLY')     return v.amount*12/52;
+  return 0;
+}
+
+function oneoffsInWindow(ws, we, who) {
+  return S.oneoffs.filter(o => {
+    if (!o.include || !o.due) return false;
+    if (who && o.who !== who && o.who !== 'HOUSEHOLD') return false;
+    return o.due >= ws && o.due <= we;
+  }).reduce((s,o) => s+o.amount, 0);
+}
+
+function leaksInWindow(ws, we) {
+  return S.leaks.filter(l => l.date >= ws && l.date <= we).reduce((s,l) => s+l.amount, 0);
+}
+
+function dayPill(nd) {
+  if (!nd) return '<span class="pill p-gray">—</span>';
+  const t = today();
+  if (nd === t)   return '<span class="pill p-a">Today</span>';
+  const diff = daysBetween(t, nd);
+  if (diff < 0)   return `<span class="pill p-r">${Math.abs(diff)}d late</span>`;
+  if (diff <= 3)  return `<span class="pill p-a">${diff}d</span>`;
+  if (diff <= 7)  return `<span class="pill p-b">${diff}d</span>`;
+  return `<span class="pill p-gray">${diff}d</span>`;
+}
+
+// Sorted bill list: pinned first, then date order
+function sortedBills() {
+  const pinned   = S.bills.filter(b => b.pinned).sort((a,b) => (nextDue(a)||'').localeCompare(nextDue(b)||''));
+  const unpinned = S.bills.filter(b => !b.pinned).sort((a,b) => {
+    const na=nextDue(a)||'9999', nb=nextDue(b)||'9999'; return na.localeCompare(nb);
+  });
+  return [...pinned, ...unpinned];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════════════════════════════════════════
+function modal(title, body, onSave, readOnly) {
+  const ex = $('modal-el'); if(ex) ex.remove();
+  const el = document.createElement('div');
+  el.id='modal-el'; el.className='modal-ov';
+  el.innerHTML=`<div class="modal-box"><div class="modal-title">${title}</div><div id="mbody">${body}</div>
+    <div class="modal-actions">
+      <button class="btn sm" onclick="document.getElementById('modal-el').remove()">Cancel</button>
+      ${readOnly?'':`<button class="btn sm primary" id="mok">Save</button>`}
+    </div></div>`;
+  el.addEventListener('click', e => { if(e.target===el) el.remove(); });
+  document.body.appendChild(el);
+  if (!readOnly) $('mok').onclick = () => { onSave(); el.remove(); };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LOGO
+// ══════════════════════════════════════════════════════════════════════════════
+function logoHTML() {
+  return `<div style="display:flex;align-items:center;gap:10px">
+    <div style="display:flex;align-items:flex-end;gap:3px;height:26px;flex-shrink:0">
+      ${[{h:'65%',c:'#4a9fff'},{h:'90%',c:'#2a7fff'},{h:'50%',c:'#2ec87a'},{h:'78%',c:'#18a060'}]
+        .map(b=>`<div style="width:7px;height:${b.h};background:${b.c};border-radius:3px"></div>`).join('')}
+    </div>
+    <div>
+      <div style="font-size:17px;font-weight:700;letter-spacing:3px;color:var(--text);line-height:1">YORBIL</div>
+      <div style="font-size:8px;font-weight:600;letter-spacing:2px;color:var(--text2);text-transform:uppercase;margin-top:1px">Household Finance</div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════════════════════════════════════
+let PAGE = 'dashboard';
+const PAGES = [
+  {id:'dashboard',lbl:'Home',  icon:'⌂'},
+  {id:'bills',    lbl:'Bills', icon:'≡'},
+  {id:'loans',    lbl:'Loans', icon:'↓'},
+  {id:'savings',  lbl:'Goals', icon:'◎'},
+  {id:'leaks',    lbl:'Leaks', icon:'~'},
+  {id:'settings', lbl:'Setup', icon:'⚙'},
+];
+
+function renderNav() {
+  $('nav').style.display='flex';
+  $('nav').innerHTML = PAGES.map(p =>
+    `<button class="nav-btn${PAGE===p.id?' active':''}" onclick="goPage('${p.id}')">
+      <span class="icon">${p.icon}</span><span class="lbl">${p.lbl}</span>
+    </button>`).join('');
+}
+
+function goPage(id) { if(id !== 'bills') BILL_SEARCH = ''; PAGE=id; renderNav(); render(); }
+
+function render() {
+  const c = $('content');
+  if      (PAGE==='dashboard') c.innerHTML = dashH();
+  else if (PAGE==='bills')     c.innerHTML = billsH();
+  else if (PAGE==='loans')     c.innerHTML = loansH();
+  else if (PAGE==='savings')   c.innerHTML = savingsH();
+  else if (PAGE==='leaks')     c.innerHTML = leaksH();
+  else if (PAGE==='settings')  c.innerHTML = settingsH();
+  c.scrollTop = 0;
+  saveDot = $('sdot');
+}
+
+function filterBillList() {
+  const q = (BILL_SEARCH || '').toLowerCase();
+  const rows = document.querySelectorAll('#bill-list [data-bill-name]');
+  rows.forEach(row => {
+    const name = row.getAttribute('data-bill-name').toLowerCase();
+    row.style.display = (!q || name.includes(q)) ? '' : 'none';
+  });
+}
+
+function renderKeepScroll() {
+  const c = $('content');
+  const pos = c.scrollTop;
+  if      (PAGE==='dashboard') c.innerHTML = dashH();
+  else if (PAGE==='bills')     c.innerHTML = billsH();
+  else if (PAGE==='loans')     c.innerHTML = loansH();
+  else if (PAGE==='savings')   c.innerHTML = savingsH();
+  else if (PAGE==='leaks')     c.innerHTML = leaksH();
+  else if (PAGE==='settings')  c.innerHTML = settingsH();
+  c.scrollTop = pos;
+  saveDot = $('sdot');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════════════════════════════
+function dashH() {
+  const inc = S.settings.incomes;
+  const sharedAlloc = S.settings.sharedAllocs.reduce((s,a)=>s+a.amount, 0);
+  const t = today();
+
+  // Active person = whose window contains today, or most recently ended
+  const windows = inc.map(p => personWindow(p));
+  let activeIdx = 0;
+  for (let i = 0; i < inc.length; i++) {
+    if (t >= windows[i].start && t <= windows[i].end) { activeIdx = i; break; }
+    if (t > windows[i].end) activeIdx = i;
+  }
+
+  // Reorder: active person first, others follow
+  const order = [activeIdx, ...inc.map((_,i)=>i).filter(i=>i!==activeIdx)];
+
+  // Missed bills warning
+  const missedBills = S.bills.filter(b => b.missed);
+  let missedBanner = '';
+  if (missedBills.length) {
+    missedBanner = `<div style="background:var(--red-d);border:0.5px solid var(--red);border-radius:10px;margin:6px 14px;padding:10px 14px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:16px">⚠</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--red-t)">${missedBills.length} missed bill${missedBills.length>1?'s':''} — action needed</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">${missedBills.map(b=>b.name).join(', ')}</div>
+      </div>
+      <button class="btn sm" onclick="goPage('bills')" style="margin-left:auto;flex-shrink:0">View</button>
+    </div>`;
+  }
+
+  // Shortfall warning — bills due in next 48hrs
+  let shortfallBanner = '';
+  const in48 = addDays(t, 2);
+  const upcomingBills = S.bills.filter(b => {
+    if (!b.include || b.missed) return false;
+    const nd = nextDue(b); return nd && nd >= t && nd <= in48;
+  });
+  if (upcomingBills.length && inc.length > 0) {
+    // Find whose window today is in
+    const activePerson = inc[activeIdx];
+    const aw = windows[activeIdx];
+    const billItems = billsInWindow(aw.start, aw.end);
+    const billTotal = billItems.reduce((s,i)=>s+i.amount,0);
+    const leaks = leaksInWindow(aw.start, aw.end);
+    const oneoffs = oneoffsInWindow(aw.start, aw.end, activePerson.name.toUpperCase());
+    const projected = activePerson.amount - billTotal - oneoffs - (activePerson.alloc||0) - sharedAlloc;
+    const shortfalls = upcomingBills.filter(b => {
+      const nd = nextDue(b);
+      const shortfall = projected - b.amount;
+      return shortfall < 0;
+    });
+    if (shortfalls.length) {
+      shortfallBanner = shortfalls.map(b => {
+        const nd = nextDue(b);
+        const diff = daysBetween(t, nd);
+        const shortAmt = Math.abs(projected - b.amount);
+        return `<div style="background:var(--amber-d);border:0.5px solid var(--amber);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--amber-t)">
+          ⚠ <strong>${b.name}</strong> ${fmt(b.amount)} due ${diff===0?'today':diff===1?'tomorrow':'in '+diff+'d'} — you may be <strong>${fmt(shortAmt)} short</strong>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  let blocks = '', rollover = 0;
+
+  order.forEach((personIdx, i) => {
+    const person = inc[personIdx];
+    const { start, end } = windows[personIdx];
+    const nextPersonIdx = order[i+1] !== undefined ? order[i+1] : null;
+    const nextStart = nextPersonIdx !== null ? windows[nextPersonIdx].start : null;
+    // Use cycleEnd when cycles share a boundary day, gap-fill only when there's a real gap
+    const extEnd = nextStart && nextStart > addDays(end, 1) ? addDays(nextStart, -1) : end;
+
+    const billItems     = billsInWindow(start, extEnd);
+    // Boundary bills: due on this cycle's start date AND prev person's cycle end date
+    // These are already covered by the previous person — show flagged but don't deduct
+    const prevPerson    = i > 0 ? inc[order[i-1]] : null;
+    const prevCycleEnd  = prevPerson ? personWindow(prevPerson).end : null;
+    const boundaryBills = (prevCycleEnd && prevCycleEnd === start)
+      ? billItems.filter(b => b.nd === start)
+      : [];
+    const boundaryIds   = new Set(boundaryBills.map(b => b.id));
+    const boundaryAmt   = boundaryBills.reduce((s,b) => s+b.amount, 0);
+    const billTotal     = billItems.reduce((s,b) => boundaryIds.has(b.id) ? s : s+b.amount, 0);
+    const oneoffs       = oneoffsInWindow(start, extEnd, person.name.toUpperCase());
+    const leaks         = leaksInWindow(start, extEnd);
+    const personalAlloc = +(person.alloc||0);
+    const openingPot    = rollover + person.amount;
+    const totalOut      = billTotal + oneoffs + leaks + personalAlloc + (i===0 ? sharedAlloc : 0);
+    const left          = openingPot - totalOut;
+    const over          = left < 0;
+    const c             = person.color || 'var(--blue)';
+    const isActive      = personIdx === activeIdx;
+
+    // Projected vs actual bank
+    const projected = openingPot - billTotal - oneoffs - personalAlloc - (i===0 ? sharedAlloc : 0);
+    const bank      = +(person.bank||0);
+    const bankDiff  = bank > 0 ? bank - projected : null;
+    // Pre-computed style strings to avoid quote conflicts in HTML attributes
+    const leftColor   = over ? 'var(--red-t)' : 'var(--green-t)';
+    const diffColor   = bankDiff!==null && bankDiff<0 ? 'var(--red-t)' : 'var(--green-t)';
+    const diffPrefix  = bankDiff!==null && bankDiff>=0 ? '+' : '';
+    // If actual bank entered, use it as the true "left" figure for rollover
+    const trueLeft  = bank > 0 ? bank - leaks - personalAlloc - sharedAlloc : left;
+
+    if (i > 0 && rollover > 0) {
+      blocks += `<div class="rollover">↓ ${fmt(rollover)} rolls from ${inc[order[i-1]].name} into ${person.name}'s week</div>`;
+    }
+
+    blocks += `<div class="wb" style="border-color:${c}60;overflow:hidden" >
+      <div class="wb-hd" style="border-bottom:2px solid var(--border);border-left:4px solid ${c}">
+        <div>
+          <div class="wb-title" style="color:${c}">${person.name}'s week${isActive?' <span style="font-size:9px;background:'+c+'30;color:'+c+';padding:2px 6px;border-radius:99px;font-weight:700;vertical-align:middle;margin-left:4px">NOW</span>':''}</div>
+          <div class="wb-dates">${fmtD(start)} – ${fmtD(end)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:700;font-family:var(--fm);color:${c}">${fmt(person.amount)}</div>
+          <div style="font-size:11px;color:var(--text2)">income this cycle</div>
+        </div>
+      </div>
+      ${i>0 && rollover>0 ? `<div style="padding:8px 14px;font-size:12px;color:var(--teal-t);background:var(--teal-d);border-bottom:1px solid var(--border);border-left:4px solid var(--teal)">Opening pot: ${fmt(rollover)} + ${fmt(person.amount)} = <strong>${fmt(openingPot)}</strong></div>` : ''}
+      ${over ? `<div class="overspend" style="margin:0;border-radius:0;border-left:4px solid var(--red)">⚠ Overspend — ${fmt(Math.abs(left))} over budget this cycle</div>` : ''}
+      <div style="padding:0 14px;border-bottom:2px solid var(--border);border-left:4px solid ${c};background:var(--bg2)">
+        <div class="row" style="padding-left:0;padding-right:0"><span class="row-lbl" style="color:var(--text)">Bills this cycle</span><span class="row-amt" style="color:var(--red-t)">−${fmt(billTotal)}</span></div>
+        ${oneoffs>0 ? `<div class="row" style="padding-left:0;padding-right:0"><span class="row-lbl" style="color:var(--text)">One-offs</span><span class="row-amt" style="color:var(--red-t)">−${fmt(oneoffs)}</span></div>` : ''}
+        ${leaks>0   ? `<div class="row" style="padding-left:0;padding-right:0"><span class="row-lbl" style="color:var(--text)">Leakages</span><span class="row-amt" style="color:var(--amber-t)">−${fmt(leaks)}</span></div>` : ''}
+        ${personalAlloc>0 ? `<div class="row" style="padding-left:0;padding-right:0"><span class="row-lbl" style="color:var(--text)">Personal alloc</span><span class="row-amt" style="color:var(--text2)">−${fmt(personalAlloc)}</span></div>` : ''}
+        ${sharedAlloc>0 ? `<div class="row" style="padding-left:0;padding-right:0;border-bottom:none"><span class="row-lbl" style="color:var(--text)">Shared allocs</span><span class="row-amt" style="color:var(--text2)">−${fmt(sharedAlloc)}</span></div>` : ''}
+      </div>
+      <div class="leftover-row" style="border-bottom:2px solid var(--border);border-left:4px solid ${c}">
+        <span class="leftover-lbl">Left end of cycle</span>
+        <span class="leftover-amt" style="color:${leftColor}">${fmt(left)}</span>
+      </div>
+      <div style="background:var(--bg3);padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;border-left:4px solid ${c}">
+        <div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:3px">Projected (no leaks)</div>
+          <div style="font-size:16px;font-weight:600;font-family:var(--fm);color:var(--blue-t)">${fmt(projected)}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:3px">Actual bank</div>
+          ${bank>0 ? `<div style="font-size:16px;font-weight:600;font-family:var(--fm);color:var(--text)">${fmt(bank)}</div>
+          ${bankDiff!==null ? `<div style="font-size:11px;color:${diffColor};margin-top:2px">${diffPrefix}${fmt(bankDiff)} vs projected</div>` : ''}` :
+          `<div style="font-size:12px;color:var(--text3);margin-top:4px">Enter in Setup →</div>`}
+        </div>
+      </div>
+      ${!over && i<order.length-1 ? `<div style="padding:8px 14px 10px;font-size:11px;color:var(--text3);background:var(--bg3);border-left:4px solid ${c}">${fmt(left)} carries into ${inc[order[i+1]].name}'s cycle</div>` : ''}
+    </div>`;
+
+    rollover = over ? 0 : (bank > 0 ? Math.max(0, bank) : Math.max(0, left));
+  });
+
+  // Per-person cycle due lists (replaces fixed week/next-week view)
+  function dueListForCycle(items, coveredBillIds) {
+    coveredBillIds = coveredBillIds || new Set();
+    if (!items.length) return '<div class="empty">Nothing due this cycle</div>';
+    let h = '<div>';
+    items.forEach(item => {
+      const isCovered = coveredBillIds.has(item.id);
+      h += `<div class="row" style="${isCovered?'opacity:0.65':''}">
+        <div class="row-l">
+          <div class="row-lbl">${item.name}${item.type==='var'?' <span class="pill p-gray" style="font-size:9px">var</span>':item.type==='oneoff'?' <span class="pill p-p" style="font-size:9px">one-off</span>':''}${isCovered?' <span class="pill p-t" style="font-size:9px">⚑ Sam covers</span>':''}</div>
+          <div class="row-sub">${fmtD(item.nd)}</div>
+        </div>
+        <div class="row-r"><div class="row-amt" style="${isCovered?'color:var(--text3)':'color:var(--text)'}">${fmt(item.amount)}</div>${dayPill(item.nd)}</div>
+      </div>`;
+    });
+    const billsOnly = items.filter(i=>i.type!=='oneoff'&&!coveredBillIds.has(i.id)).reduce((s,i)=>s+i.amount,0);
+    const oneoffOnly = items.filter(i=>i.type==='oneoff').reduce((s,i)=>s+i.amount,0);
+    h += `<div class="row" style="background:var(--bg3)">
+      <span style="font-size:12px;font-weight:600;color:var(--text2)">Bills total</span>
+      <span style="font-family:var(--fm);font-weight:700;color:var(--blue-t)">${fmt(billsOnly)}</span>
+    </div>`;
+    if (oneoffOnly > 0) {
+      h += `<div class="row" style="background:var(--bg3)">
+        <span style="font-size:12px;font-weight:600;color:var(--text2)">One-offs total</span>
+        <span style="font-family:var(--fm);font-weight:700;color:var(--purple-t)">${fmt(oneoffOnly)}</span>
+      </div>`;
+    }
+    h += '</div>';
+    return h;
+  }
+
+  const totalSaved = S.goals.reduce((s,g)=>s+g.saved,0);
+  const totalLoans = S.loans.reduce((s,l)=>s+l.current,0);
+
+  return `<div class="pg-hdr">
+    <div>${logoHTML()}</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div id="sdot" class="sdot"></div>
+      <span style="font-size:10px;color:var(--text3)">${new Date().toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}</span>
+    </div>
+  </div>
+  ${inc.length===0 ? '<div class="alert-info" style="margin-top:10px">Welcome! Go to <strong>Setup</strong> to add your household details.</div>' : ''}
+  ${missedBanner}${shortfallBanner}
+  ${blocks}
+  ${order.map((pi, oi) => {
+    const p = inc[pi];
+    const pw = windows[pi];
+    const nextPi = order[oi+1] !== undefined ? order[oi+1] : null;
+    const nextPiStart = nextPi !== null ? windows[nextPi].start : null;
+    const extE = nextPiStart && nextPiStart > addDays(pw.end,1) ? addDays(nextPiStart,-1) : pw.end;
+    const items = billsInWindow(pw.start, extE);
+    const c = p.color || 'var(--blue)';
+    // Bills that start on this cycle's start date but were also the prev cycle's end — mark as covered
+    const prevPi = oi > 0 ? order[oi-1] : null;
+    const prevEnd = prevPi !== null ? windows[prevPi].end : null;
+    const coveredIds = new Set(
+      (prevEnd && prevEnd === pw.start)
+        ? items.filter(b => b.nd === pw.start).map(b => b.id)
+        : []
+    );
+    const prevName = prevPi !== null ? inc[prevPi].name : '';
+    // Replace generic "Sam covers" with actual name
+    return `<div class="sec-lbl" style="color:${c}">${p.name}'s cycle — ${fmtD(pw.start)} to ${fmtD(pw.end)}</div>
+    <div class="card">${dueListForCycle(items, coveredIds).replace(/⚑ Sam covers/g, '⚑ '+prevName+' covers')}</div>`;
+  }).join('')}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;margin:6px 14px">
+    <div class="card" style="margin:0 4px 0 0;border-radius:14px">
+      <div class="card-hd"><span class="card-hd-t" style="color:var(--green-t)">Savings</span></div>
+      ${S.goals.length
+        ? S.goals.map(g=>{const p=g.target>0?Math.min(100,Math.round(g.saved/g.target*100)):0;return`<div class="row">
+          <div class="row-l" style="max-width:90px"><div class="row-lbl" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name}</div>
+          <div class="pb"><div class="pb-fill" style="width:${p}%"></div></div></div>
+          <span class="pill p-${p>=100?'g':p>0?'b':'gray'}">${p}%</span>
+        </div>`;}).join('')+`<div class="row"><span style="font-size:11px;color:var(--text2)">Total</span><span style="font-family:var(--fm);font-size:13px;font-weight:600;color:var(--green-t)">${fmt(totalSaved)}</span></div>`
+        : '<div class="empty" style="padding:12px 14px">No goals yet</div>'}
+    </div>
+    <div class="card" style="margin:0 0 0 4px;border-radius:14px">
+      <div class="card-hd"><span class="card-hd-t" style="color:var(--red-t)">Loans</span></div>
+      ${S.loans.length
+        ? S.loans.map(l=>{const p=l.original>0?Math.min(100,Math.round((1-l.current/l.original)*100)):0;return`<div class="row">
+          <div class="row-l" style="max-width:90px"><div class="row-lbl" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.name}</div>
+          <div class="pb"><div class="pb-fill" style="width:${p}%;background:var(--blue)"></div></div></div>
+          <span class="pill p-gray">${p}%</span>
+        </div>`;}).join('')+`<div class="row"><span style="font-size:11px;color:var(--text2)">Total</span><span style="font-family:var(--fm);font-size:13px;font-weight:600;color:var(--red-t)">${fmt(totalLoans)}</span></div>`
+        : '<div class="empty" style="padding:12px 14px">No loans yet</div>'}
+    </div>
+  </div>
+  <div style="height:8px"></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BILLS TAB
+// ══════════════════════════════════════════════════════════════════════════════
+function billsH() {
+  const sorted = sortedBills();
+  const windows = S.settings.incomes.map(p => personWindow(p));
+
+  // Build handover-aware bill list
+  function billRowsWithHandover(bills) {
+    if (!bills.length) return '<div class="empty">No bills yet — tap + Add</div>';
+    let html = '', lastOwnerIdx = -1;
+    bills.forEach(b => {
+      const nd = nextDue(b);
+      const hist = b.paidHistory||[];
+      const la = hist.length ? hist[hist.length-1].actual : null;
+
+      // Find owner
+      let ownerIdx = -1;
+      if (nd) {
+        for (let pi = 0; pi < S.settings.incomes.length; pi++) {
+          const pw = windows[pi];
+          if (nd >= pw.start && nd <= pw.end) { ownerIdx = pi; break; }
+        }
+      }
+
+      if (ownerIdx !== -1 && ownerIdx !== lastOwnerIdx && lastOwnerIdx !== -1) {
+        const owner = S.settings.incomes[ownerIdx];
+        const c = owner.color || 'var(--blue)';
+        html += `<div style="padding:7px 14px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:${c};background:${c}15;border-top:1.5px solid ${c}40;border-bottom:1.5px solid ${c}40">
+          ${owner.name} takes over from here
+        </div>`;
+      }
+      lastOwnerIdx = ownerIdx;
+
+      html += `<div class="row" id="bill-row-${b.id}" data-bill-name="${b.name}">
+        <div class="row-l">
+          <div class="row-lbl">
+            ${b.pinned ? '<span style="color:var(--amber-t);margin-right:3px;font-size:10px">📌</span>' : ''}
+            ${b.name}
+            ${b.missed ? '<span class="pill p-r" style="font-size:9px;margin-left:4px">MISSED</span>' : ''}
+          </div>
+          <div class="row-sub">${b.freq}${nd?' · due '+fmtD(nd):''}${la?' · paid '+fmtD(la):''}</div>
+        </div>
+        <div class="row-r" style="flex-direction:row;align-items:center;gap:3px">
+          <div style="text-align:right;margin-right:2px"><div class="row-amt">${fmt(b.amount)}</div>${b.missed?'<span class="pill p-r" style="font-size:9px">frozen</span>':dayPill(nd)}</div>
+          <div class="tog${b.include&&!b.missed?' on':''}" onclick="togBill(${b.id})"><div class="tog-dot"></div></div>
+          <button class="btn-icon" onclick="billModal(${b.id})" title="Edit">✎</button>
+          ${b.missed
+            ? `<button class="btn-icon" onclick="retryModal(${b.id})" title="Mark paid / retry" style="color:var(--green-t)">✓</button>`
+            : `<button class="btn-icon" onclick="markPaid(${b.id})" title="Mark paid">✓</button>`}
+          ${b.missed
+            ? `<button class="btn-icon" onclick="unMissed(${b.id})" title="Unfreeze" style="color:var(--teal-t)">↺</button>`
+            : `<button class="btn-icon" onclick="markMissed(${b.id})" title="Mark missed" style="color:var(--amber-t)">!</button>`}
+          <button class="btn-icon" onclick="togglePin(${b.id})" title="Pin/Unpin" style="color:var(--amber-t)">${b.pinned?'★':'☆'}</button>
+          <button class="btn-icon" onclick="histModal(${b.id})" title="History">⏱</button>
+          <button class="btn-icon" onclick="delBill(${b.id})" style="color:var(--red-t)">✕</button>
+        </div>
+      </div>`;
+    });
+    return html;
+  }
+
+  return `<div class="pg-hdr"><div><div class="pg-title">Bills</div></div><button class="btn sm primary" onclick="billModal()">+ Add</button></div>
+  <div class="card card-p" style="padding:10px 14px">
+    <input type="text" id="bill-search" placeholder="🔍  Search bills..."
+      oninput="BILL_SEARCH=this.value;filterBillList();"
+      value="${BILL_SEARCH||''}"
+      style="border-radius:99px;padding:8px 14px;font-size:13px;width:100%">
+  </div>
+  <div class="card">
+    <div class="card-hd"><span class="card-hd-t" style="color:var(--blue-t)">Recurring bills</span></div>
+    <div id="bill-list">${billRowsWithHandover(sorted.filter(b => {
+      return !BILL_SEARCH || b.name.toLowerCase().includes(BILL_SEARCH.toLowerCase());
+    }))}</div>
+  </div>
+  <div class="sec-lbl">Variable budgets</div>
+  <div class="card">
+    <div class="card-hd"><span class="card-hd-t" style="color:var(--amber-t)">Variables</span><button class="btn sm" onclick="varModal()">+ Add</button></div>
+    ${S.variables.length ? S.variables.map(v=>`<div class="row">
+      <div class="row-l"><div class="row-lbl">${v.name}</div><div class="row-sub">${v.freq} · ${DAYS_F[v.dayOfWeek||1]} · ${fmt(weeklyAmt(v))}/wk</div></div>
+      <div class="row-r" style="flex-direction:row;align-items:center;gap:4px">
+        <div class="row-amt">${fmt(v.amount)}</div>
+        <div class="tog${v.inDueList?' on':''}" onclick="togVar(${v.id})"><div class="tog-dot"></div></div>
+        <button class="btn-icon" onclick="varModal(${v.id})">✎</button>
+        <button class="btn-icon" onclick="delVar(${v.id})" style="color:var(--red-t)">✕</button>
+      </div>
+    </div>`).join('') : '<div class="empty">No variables yet</div>'}
+  </div>
+  <div class="sec-lbl">One-off expenses</div>
+  <div class="card">
+    <div class="card-hd"><span class="card-hd-t" style="color:var(--purple-t)">One-offs</span><button class="btn sm" onclick="oneoffModal()">+ Add</button></div>
+    ${S.oneoffs.length ? S.oneoffs.map(o=>`<div class="row">
+      <div class="row-l"><div class="row-lbl">${o.name}</div><div class="row-sub">${fmtD(o.due)} · <span class="pill p-${o.who==='HOUSEHOLD'?'t':'p'}" style="font-size:9px">${o.who}</span></div></div>
+      <div class="row-r" style="flex-direction:row;align-items:center;gap:4px">
+        <div class="row-amt">${fmt(o.amount)}</div>
+        <div class="tog${o.include?' on':''}" onclick="togOneoff(${o.id})"><div class="tog-dot"></div></div>
+        <button class="btn-icon" onclick="oneoffModal(${o.id})">✎</button>
+        <button class="btn-icon" onclick="delOneoff(${o.id})" style="color:var(--red-t)">✕</button>
+      </div>
+    </div>`).join('') : '<div class="empty">No one-offs yet</div>'}
+  </div>
+  <div style="height:8px"></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LOANS
+// ══════════════════════════════════════════════════════════════════════════════
+function loansH() {
+  return `<div class="pg-hdr"><div><div class="pg-title">Loans</div></div><button class="btn sm primary" onclick="loanModal()">+ Add</button></div>
+  ${S.loans.length ? S.loans.map(l=>{
+    const rpp={WEEKLY:(+l.rate)/100/52,FORTNIGHTLY:(+l.rate)/100/26,MONTHLY:(+l.rate)/100/12}[l.freq]||0;
+    const tp=(+(l.payment)||0)+(+(l.extra)||0);
+    const interestPerPeriod = rpp*(+l.current);
+    const isUnderwater = rpp>0 && tp<=interestPerPeriod;
+    let periods=0;
+    if(l.current>0&&tp>0&&!isUnderwater){if(rpp===0)periods=Math.ceil((+l.current)/tp);else{const v=rpp*(+l.current)/tp;if(v<1)periods=Math.ceil(-Math.log(1-v)/Math.log(1+rpp));}}
+    const dpp={WEEKLY:7,FORTNIGHTLY:14,MONTHLY:30}[l.freq]||30;
+    const payoff=periods>0?addDays(today(),periods*dpp):null;
+    const pct=l.original>0?Math.min(100,Math.round((1-l.current/l.original)*100)):0;
+    const totalInt=periods>0&&rpp>0?Math.max(0,periods*tp-l.current):0;
+    let sched='';
+    if(l.current>0&&tp>0){let bal=+(l.current);for(let i=1;i<=6&&bal>0.01;i++){const int=rpp>0?bal*rpp:0,pmt=Math.min(tp,bal+int);bal=Math.max(0,bal+int-pmt);sched+=`<tr><td style="color:var(--text3)">${{WEEKLY:'Wk',FORTNIGHTLY:'FN',MONTHLY:'Mo'}[l.freq]||'#'} ${i}</td><td style="text-align:right;color:var(--amber-t)">${fmt(int)}</td><td style="text-align:right">${fmt(pmt)}</td><td style="text-align:right;color:var(--green-t)">${fmt(bal)}</td></tr>`;}}
+    return `<div class="lc">
+      <div class="lc-hd"><div><div class="lc-name">${l.name}</div><div class="lc-sub">${l.freq} · ${l.rate}% p.a.</div></div>
+        <div class="lc-bal"><div class="lc-cur">${fmt(l.current)}</div><div class="lc-orig">of ${fmt(l.original)}</div></div></div>
+      <div class="pb"><div class="pb-fill" style="width:${pct}%;background:var(--blue)"></div></div>
+      <div style="font-size:11px;color:var(--text3);text-align:right;margin-bottom:10px">${pct}% paid off</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div class="metric"><div class="m-lbl">Regular payment</div><div class="m-val" style="font-size:16px">${fmt(l.payment)}</div></div>
+        <div class="metric"><div class="m-lbl">Extra payment${isUnderwater?` · <span style="color:var(--amber-t);font-size:9px">min ${fmt(Math.max(0,interestPerPeriod-tp+1))} extra</span>`:''}
+          </div><input type="number" value="${+(l.extra)||0}" style="font-size:16px;font-weight:600;margin-top:4px;color:var(--green-t);border:none;background:transparent;width:100%;padding:0;outline:none" onchange="updExtra(${l.id},+this.value)"></div>
+        <div class="metric"><div class="m-lbl">Payoff date</div><div class="m-val g" style="font-size:13px;margin-top:4px">${isUnderwater?'<span style="color:var(--red-t);font-size:11px">⚠ Payment below interest</span>':payoff?fmtDY(payoff):'—'}</div></div>
+        <div class="metric"><div class="m-lbl">Total interest</div><div class="m-val a" style="font-size:13px;margin-top:4px">${isUnderwater?'<span style="color:var(--red-t);font-size:11px">Loan growing</span>':fmt(totalInt)}</div></div>
+      </div>
+      ${sched?`<div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Next 6 payments</div>
+      <table class="sched"><thead><tr><th>#</th><th style="text-align:right">Interest</th><th style="text-align:right">Payment</th><th style="text-align:right">Balance</th></tr></thead><tbody>${sched}</tbody></table>`:''}
+      <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn sm" onclick="loanModal(${l.id})">Edit</button>
+        <button class="btn sm" onclick="updBalance(${l.id})">Update balance</button>
+        <button class="btn sm danger" onclick="delLoan(${l.id})">Delete</button>
+      </div></div>`;}).join('') : '<div class="card card-p empty">No loans yet</div>'}
+  <div style="height:8px"></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SAVINGS
+// ══════════════════════════════════════════════════════════════════════════════
+function savingsH() {
+  return `<div class="pg-hdr"><div><div class="pg-title">Savings goals</div></div><button class="btn sm primary" onclick="goalModal()">+ Add</button></div>
+  ${S.goals.length ? S.goals.map(g=>{
+    const pct=g.target>0?Math.min(100,Math.round(g.saved/g.target*100)):0;
+    const rem=Math.max(0,g.target-g.saved);
+    let rw='—',rf='—',rm='—';
+    if(g.targetDate){const d=daysBetween(today(),g.targetDate);if(d>0){rw=fmt(rem/(d/7));rf=fmt(rem/(d/14));rm=fmt(rem/(d/30.4));}}
+    return `<div class="gc">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:15px;font-weight:700;color:var(--text)">${g.name}</div>
+        <span class="pill p-${pct>=100?'g':pct>0?'b':'gray'}">${pct}%</span>
+      </div>
+      <div class="pb"><div class="pb-fill" style="width:${pct}%"></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
+        <div class="metric"><div class="m-lbl">Saved</div><input type="number" value="${g.saved}" style="font-size:16px;font-weight:600;margin-top:4px;color:var(--green-t);border:none;background:transparent;width:100%;padding:0;outline:none" onchange="updGoalSaved(${g.id},+this.value)"></div>
+        <div class="metric"><div class="m-lbl">Target</div><div class="m-val g" style="font-size:16px">${fmt(g.target)}</div></div>
+        <div class="metric"><div class="m-lbl">Remaining</div><div class="m-val a" style="font-size:16px">${fmt(rem)}</div></div>
+      </div>
+      ${g.targetDate?`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px">
+        <div class="metric"><div class="m-lbl">Need/wk</div><div style="font-size:13px;font-weight:600;color:var(--amber-t);margin-top:4px">${rw}</div></div>
+        <div class="metric"><div class="m-lbl">Need/FN</div><div style="font-size:13px;font-weight:600;color:var(--amber-t);margin-top:4px">${rf}</div></div>
+        <div class="metric"><div class="m-lbl">Need/mo</div><div style="font-size:13px;font-weight:600;color:var(--amber-t);margin-top:4px">${rm}</div></div>
+      </div>`:''}
+      <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;align-items:center">
+        <input type="date" value="${g.targetDate||''}" style="width:150px;font-size:12px" onchange="updGoalDate(${g.id},this.value)">
+        <button class="btn sm" onclick="goalModal(${g.id})">Edit</button>
+        <button class="btn sm danger" onclick="delGoal(${g.id})">Delete</button>
+      </div>
+    </div>`;}).join('') : '<div class="card card-p empty">No goals yet</div>'}
+  <div style="height:8px"></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LEAKS
+// ══════════════════════════════════════════════════════════════════════════════
+function leaksH() {
+  const sorted=[...S.leaks].sort((a,b)=>b.date.localeCompare(a.date));
+  const total=sorted.reduce((s,l)=>s+l.amount,0);
+  return `<div class="pg-hdr">
+    <div><div class="pg-title">Leak log</div><div class="pg-sub">Log unplanned spending</div></div>
+    <span style="font-family:var(--fm);font-weight:700;color:var(--red-t)">${fmt(total)}</span>
+  </div>
+  <div class="card card-p">
+    <div class="f2" style="margin-bottom:8px">
+      <div class="ff" style="margin:0"><label>Date</label><input type="date" id="lk-d" value="${today()}"></div>
+      <div class="ff" style="margin:0"><label>Amount ($)</label><input type="number" id="lk-a" placeholder="0.00"></div>
+    </div>
+    <div class="f2" style="margin-bottom:12px">
+      <div class="ff" style="margin:0"><label>Category</label><input type="text" id="lk-c" placeholder="e.g. Food, Coffee"></div>
+      <div class="ff" style="margin:0"><label>Note</label><input type="text" id="lk-n" placeholder="Optional"></div>
+    </div>
+    <button class="btn primary" style="width:100%" onclick="addLeak()">Log it</button>
+  </div>
+  ${sorted.length ? `<div class="card">${sorted.map(l=>`<div class="row">
+    <div class="row-l"><div class="row-lbl">${l.category}</div><div class="row-sub">${fmtD(l.date)}${l.note?' · '+l.note:''}</div></div>
+    <div class="row-r" style="flex-direction:row;align-items:center;gap:4px">
+      <div class="row-amt" style="color:var(--red-t)">${fmt(l.amount)}</div>
+      <button class="btn-icon" onclick="leakModal(${l.id})">✎</button>
+      <button class="btn-icon" onclick="delLeak(${l.id})" style="color:var(--red-t)">✕</button>
+    </div>
+  </div>`).join('')}</div>` : '<div class="card card-p empty">Nothing logged yet</div>'}
+  <div style="height:8px"></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════════════════════════════════════════
+function settingsH() {
+  const inc=S.settings.incomes;
+  const status=STORAGE.storageStatus();
+  const lastSaved=S.lastSaved?new Date(S.lastSaved).toLocaleString('en-AU'):'Not yet saved';
+  return `<div class="pg-hdr"><div><div class="pg-title">Setup</div></div></div>
+
+  <div class="sec-lbl">Appearance</div>
+  <div class="card card-p">
+    <div class="row" style="padding:0">
+      <div class="row-l"><div class="row-lbl">Dark mode</div><div class="row-sub">Toggle dark / light theme</div></div>
+      <div class="tog${S.theme==='dark'?' on':''}" onclick="toggleTheme()"><div class="tog-dot"></div></div>
+    </div>
+  </div>
+
+  <div class="sec-lbl">Household</div>
+  <div class="card card-p">
+    <div class="ff"><label>Household name</label><input type="text" value="${S.settings.householdName||''}" onchange="S.settings.householdName=this.value;autoSave()"></div>
+    <div class="ff" style="margin-bottom:0"><label>Number of income earners</label>
+      <select onchange="setIncomeCount(+this.value)">
+        ${[1,2,3,4].map(n=>`<option value="${n}"${inc.length===n?' selected':''}>${n} ${n===1?'person (solo)':'people'}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div class="sec-lbl">Income earners</div>
+  <div class="card card-p" style="background:var(--bg3);border-color:var(--border)">
+    <div style="font-size:12px;color:var(--text2);line-height:1.7">
+      <strong style="color:var(--text)">How coverage periods work:</strong> Set the exact start and end date of each person's coverage for this cycle. Bills falling in that range are counted against that person. Update these each pay day — just edit the dates below.
+    </div>
+  </div>
+  ${inc.map((p,i)=>`<div class="card card-p" style="border-color:${p.color||'#4a9fff'}40">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:${p.color||'#4a9fff'}">${p.name||'Person '+(i+1)}</div>
+      <div style="display:flex;gap:5px">${COLORS.map(c=>`<div onclick="S.settings.incomes[${i}].color='${c}';autoSave();render()" style="width:18px;height:18px;border-radius:50%;background:${c};cursor:pointer;border:3px solid ${(p.color||COLORS[i])===c?"#fff":"transparent"}"></div>`).join('')}</div>
+    </div>
+    <div class="ff" style="margin-bottom:8px"><label>Name</label>
+      <input type="text" value="${p.name||''}" onchange="S.settings.incomes[${i}].name=this.value;autoSave();render()">
+    </div>
+    <div class="f2" style="margin-bottom:8px">
+      <div class="ff" style="margin:0"><label>Coverage starts</label>
+        <input type="date" value="${p.cycleStart||today()}" onchange="S.settings.incomes[${i}].cycleStart=this.value;autoSave();render()">
+      </div>
+      <div class="ff" style="margin:0"><label>Coverage ends</label>
+        <input type="date" value="${p.cycleEnd||addDays(today(),6)}" onchange="S.settings.incomes[${i}].cycleEnd=this.value;autoSave();render()">
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;padding:6px 10px;background:var(--bg3);border-radius:8px">
+      Coverage: ${p.cycleStart&&p.cycleEnd ? daysBetween(p.cycleStart,p.cycleEnd)+1+' days · '+fmtD(p.cycleStart)+' to '+fmtD(p.cycleEnd) : 'Set dates above'}
+    </div>
+    <div class="f2" style="margin-bottom:8px">
+      <div class="ff" style="margin:0"><label>Pay cycle type</label>
+        <select onchange="S.settings.incomes[${i}].cycleType=this.value;autoSave()">
+          ${['WEEKLY','FORTNIGHTLY','MONTHLY'].map(c=>`<option value="${c}"${(p.cycleType||'FORTNIGHTLY')===c?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="ff" style="margin:0"><label>Income this cycle ($)</label>
+        <input type="number" value="${p.amount||''}" placeholder="0.00" onchange="S.settings.incomes[${i}].amount=+this.value;autoSave();render()">
+      </div>
+    </div>
+    <div class="f2">
+      <div class="ff" style="margin-bottom:0"><label>Bank balance now ($)</label>
+        <input type="number" value="${p.bank||''}" placeholder="0.00" onchange="S.settings.incomes[${i}].bank=+this.value;autoSave();render()">
+      </div>
+      <div class="ff" style="margin-bottom:0"><label>Personal alloc ($)</label>
+        <input type="number" value="${p.alloc||''}" placeholder="0" onchange="S.settings.incomes[${i}].alloc=+this.value;autoSave();render()">
+      </div>
+    </div>
+  </div>`).join('')}
+
+  <div class="sec-lbl">Shared allocations</div>
+  <div class="card card-p">
+    ${S.settings.sharedAllocs.map((a,i)=>`<div class="f2" style="margin-bottom:8px;align-items:end">
+      <div class="ff" style="margin:0"><label>Name</label><input type="text" value="${a.name}" onchange="S.settings.sharedAllocs[${i}].name=this.value;autoSave()"></div>
+      <div style="display:flex;gap:6px">
+        <div class="ff" style="margin:0;flex:1"><label>Amount ($)</label><input type="number" value="${a.amount}" onchange="S.settings.sharedAllocs[${i}].amount=+this.value;autoSave();render()"></div>
+        <button class="btn-icon" onclick="S.settings.sharedAllocs.splice(${i},1);autoSave();render()" style="align-self:end;color:var(--red-t)">✕</button>
+      </div>
+    </div>`).join('')}
+    <button class="btn sm" onclick="S.settings.sharedAllocs.push({id:nid(),name:'New fund',amount:0});autoSave();render()">+ Add shared allocation</button>
+  </div>
+
+  <div class="sec-lbl">Backup & Restore</div>
+  <div class="card card-p">
+    <div class="status-row"><span>Schema version</span><span style="font-family:var(--fm);color:var(--text)">v${STORAGE.SCHEMA_VER}</span></div>
+    <div class="status-row"><span>Last saved</span><span style="color:var(--green-t);font-size:11px">${lastSaved}</span></div>
+    <div class="status-row"><span>Storage used</span><span style="font-family:var(--fm);color:var(--text)">${status.size}</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn sm primary" onclick="STORAGE.exportJSON(S)">Export backup</button>
+      <button class="btn sm" onclick="doImport()">Import backup</button>
+    </div>
+  </div>
+
+  <div class="sec-lbl">Bill window diagnostics</div>
+  <div class="card card-p" id="diag-card">
+    <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Shows exactly which bills fall in each person's window and why.</div>
+    <div id="diag-output" style="font-size:11px;font-family:var(--fm);color:var(--text2);line-height:1.8">
+    ${(()=>{
+      let out = '';
+      S.settings.incomes.forEach((p,pi) => {
+        const ws = p.cycleStart, we = p.cycleEnd;
+        out += '<div style="color:var(--blue-t);font-weight:700;margin-top:8px">'+p.name+': '+ws+' to '+we+'</div>';
+        let total = 0;
+        S.bills.filter(b=>b.include&&!b.missed).forEach(b => {
+          let d = b.lastDue;
+          let found = null;
+          if (d) {
+            for (let i=0;i<500;i++) {
+              if (d > we) break;
+              if (d >= ws) { found = d; break; }
+              d = advanceOne(b.freq, d);
+            }
+          }
+          if (found) {
+            total += b.amount;
+            out += '<div style="color:var(--green-t)">  ✓ '+b.name+' $'+b.amount+' (due '+found+', lastDue='+b.lastDue+', '+b.freq+')</div>';
+          }
+        });
+        out += '<div style="color:var(--amber-t);font-weight:700">  TOTAL: $'+total+'</div>';
+      });
+      return out;
+    })()}
+    </div>
+  </div>
+  <div class="sec-lbl" style="color:var(--red-t)">Danger zone</div>
+  <div class="card card-p">
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Permanently deletes all bills, loans, goals, leaks and settings.</div>
+    <button class="btn sm danger" onclick="doReset()">Reset all data</button>
+  </div>
+  <div style="height:8px"></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════════════════════════════════════
+function billModal(id) {
+  const b=id?S.bills.find(x=>x.id===id):{name:'',freq:'MONTHLY',amount:0,lastDue:today(),paidHistory:[],include:true,missed:false,pinned:false};
+  if(!b)return;
+  modal(id?'Edit bill':'Add bill',`
+    <div class="ff"><label>Bill name</label><input id="m-n" value="${b.name}"></div>
+    <div class="f2">
+      <div class="ff"><label>Frequency</label><select id="m-f">${FREQS.map(f=>`<option${b.freq===f?' selected':''}>${f}</option>`).join('')}</select></div>
+      <div class="ff"><label>Amount ($)</label><input id="m-a" type="number" value="${b.amount}"></div>
+    </div>
+    <div class="f2">
+      <div class="ff"><label>Last due date</label><input id="m-d" type="date" value="${b.lastDue||today()}"></div>
+      <div class="ff"><label>Include in totals</label><select id="m-i"><option value="true"${b.include?' selected':''}>Yes</option><option value="false"${!b.include?' selected':''}>No</option></select></div>
+    </div>`,
+  ()=>{
+    const name=$('m-n').value.trim();if(!name)return;
+    if(id){const bx=S.bills.find(x=>x.id===id);bx.name=name;bx.freq=$('m-f').value;bx.amount=+$('m-a').value;if($('m-d').value)bx.lastDue=$('m-d').value;bx.include=$('m-i').value==='true';}
+    else S.bills.push({id:nid(),name,freq:$('m-f').value,amount:+$('m-a').value,lastDue:$('m-d').value||today(),paidHistory:[],include:$('m-i').value==='true',missed:false,pinned:false});
+    autoSave();render();
+  });
+}
+
+function markPaid(id) {
+  const b=S.bills.find(x=>x.id===id);if(!b)return;
+  const nd=nextDue(b)||today();
+  modal('Mark as paid',`
+    <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">Scheduled due: <strong style="color:var(--text)">${fmtD(nd)}</strong></div>
+    <div class="ff"><label>Actual date paid</label><input id="m-ap" type="date" value="${today()}"></div>`,
+  ()=>{
+    const actual=$('m-ap').value||today();
+    if(!b.paidHistory)b.paidHistory=[];
+    b.paidHistory.push({due:nd,actual,retry:false});
+    b.lastDue=nd;
+    autoSave();render();
+  });
+}
+
+function markMissed(id) {
+  const b=S.bills.find(x=>x.id===id);if(!b)return;
+  if(!confirm(`Mark "${b.name}" as missed? It will be frozen and stop auto-advancing.`))return;
+  b.missed=true;
+  autoSave();render();
+}
+
+function unMissed(id) {
+  const b=S.bills.find(x=>x.id===id);if(!b)return;
+  b.missed=false;
+  autoSave();render();
+}
+
+function retryModal(id) {
+  const b=S.bills.find(x=>x.id===id);if(!b)return;
+  const cycles=missedCycles(b);
+  modal('Retry payment',`
+    <div style="background:var(--red-d);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--red-t)">
+      <strong>${b.name}</strong> — ${cycles} cycle${cycles!==1?'s':''} missed · Original: ${fmt(b.amount)}
+    </div>
+    <div class="ff"><label>Total amount actually charged ($)</label>
+      <input id="m-rc" type="number" placeholder="${b.amount}" value="${b.amount}">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Enter whatever they actually took out. Any amount above the original becomes a penalty leak.</div>
+    </div>
+    <div class="ff" style="margin-bottom:0"><label>Date payment came out</label>
+      <input id="m-rd" type="date" value="${today()}">
+    </div>`,
+  ()=>{
+    const charged=+$('m-rc').value||b.amount;
+    const date=$('m-rd').value||today();
+    const penalty=Math.max(0,charged-b.amount);
+    const nd=nextDue(b)||today();
+
+    // Log in history
+    if(!b.paidHistory)b.paidHistory=[];
+    b.paidHistory.push({
+      due:nd, actual:date, retry:true,
+      charged, original:b.amount, penalty
+    });
+
+    // Auto-create leak for penalty
+    if(penalty>0){
+      S.leaks.push({id:nid(),date,category:`Missed payment penalty — ${b.name}`,amount:penalty,note:`Retry: charged ${fmt(charged)}, original ${fmt(b.amount)}`});
+    }
+
+    // Advance lastDue by correct number of periods to get back on cycle
+    let advancedDate = b.lastDue||date;
+    for(let i=0;i<=cycles;i++) advancedDate=advanceOne(b.freq,advancedDate);
+    b.lastDue=advanceOne(b.freq,advancedDate); // one more to set next due correctly
+    // Actually: set lastDue to the most recent missed due date so nextDue points to next upcoming
+    let d=b.lastDue||date;
+    for(let i=0;i<cycles+1&&i<200;i++) d=advanceOne(b.freq,b.lastDue||date);
+    // Simple: advance from original lastDue by (cycles+1) periods
+    let ld=b.lastDue||today();
+    for(let i=0;i<cycles+1;i++) ld=advanceOne(b.freq,ld);
+    b.lastDue=ld;
+    b.missed=false;
+
+    autoSave();render();
+    alert(`Done! ${penalty>0?`Penalty of ${fmt(penalty)} logged as a leak. `:''}Bill is back on cycle — next due ${fmtD(nextDue(b))}.`);
+  });
+}
+
+function histModal(id){
+  const b=S.bills.find(x=>x.id===id);if(!b)return;
+  const hist=(b.paidHistory||[]).slice().reverse();
+  modal(`History — ${b.name}`,`
+    <div style="max-height:300px;overflow-y:auto">
+    ${!hist.length?'<div style="color:var(--text3);font-size:13px;padding:8px 0">No history yet.</div>':
+    `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr>
+        <th style="text-align:left;font-size:10px;font-weight:700;color:var(--text3);padding:4px 0;border-bottom:0.5px solid var(--border)">Due</th>
+        <th style="text-align:left;font-size:10px;font-weight:700;color:var(--text3);padding:4px 0;border-bottom:0.5px solid var(--border)">Paid</th>
+        <th style="text-align:right;font-size:10px;font-weight:700;color:var(--text3);padding:4px 0;border-bottom:0.5px solid var(--border)">Detail</th>
+      </tr></thead>
+      <tbody>${hist.map(h=>{
+        const d=daysBetween(h.due,h.actual);
+        const detail=h.retry
+          ?`<span class="pill p-r" style="font-size:9px">Retry</span><br><span style="color:var(--text3);font-size:10px">charged ${fmt(h.charged)} · orig ${fmt(h.original)}${h.penalty>0?' · penalty '+fmt(h.penalty):''}</span>`
+          :`<span class="pill ${d===0?'p-g':d>0?'p-a':'p-b'}">${d===0?'On time':d>0?d+'d late':Math.abs(d)+'d early'}</span>`;
+        return`<tr>
+          <td style="padding:7px 0;color:var(--text)">${fmtD(h.due)}</td>
+          <td style="padding:7px 0;color:var(--text)">${fmtD(h.actual)}</td>
+          <td style="padding:7px 0;text-align:right">${detail}</td>
+        </tr>`;}).join('')}</tbody>
+    </table>`}</div>`,null,true);
+}
+
+function varModal(id){
+  const v=id?S.variables.find(x=>x.id===id):{name:'',freq:'WEEKLY',amount:0,dayOfWeek:1,inDueList:false};
+  if(!v)return;
+  modal(id?'Edit variable':'Add variable',`
+    <div class="ff"><label>Category name</label><input id="m-vn" value="${v.name}"></div>
+    <div class="f2">
+      <div class="ff"><label>Frequency</label><select id="m-vf">${['WEEKLY','FORTNIGHTLY','MONTHLY'].map(f=>`<option${v.freq===f?' selected':''}>${f}</option>`).join('')}</select></div>
+      <div class="ff"><label>Amount ($)</label><input id="m-va" type="number" value="${v.amount}"></div>
+    </div>
+    <div class="ff"><label>Expected day</label><select id="m-vd">${DAYS_F.map((d,i)=>`<option value="${i}"${(v.dayOfWeek||1)===i?' selected':''}>${d}</option>`).join('')}</select></div>
+    <div class="ff" style="margin-bottom:0"><label>Show in due list & deduct?</label>
+      <select id="m-vi"><option value="false"${!v.inDueList?' selected':''}>No — budget reference only</option><option value="true"${v.inDueList?' selected':''}>Yes — deduct weekly</option></select>
+    </div>`,
+  ()=>{
+    const name=$('m-vn').value.trim();if(!name)return;
+    if(id){const vx=S.variables.find(x=>x.id===id);vx.name=name;vx.freq=$('m-vf').value;vx.amount=+$('m-va').value;vx.dayOfWeek=+$('m-vd').value;vx.inDueList=$('m-vi').value==='true';}
+    else S.variables.push({id:nid(),name,freq:$('m-vf').value,amount:+$('m-va').value,dayOfWeek:+$('m-vd').value,inDueList:$('m-vi').value==='true'});
+    autoSave();render();
+  });
+}
+
+function oneoffModal(id){
+  const o=id?S.oneoffs.find(x=>x.id===id):{name:'',amount:0,due:today(),who:'HOUSEHOLD',include:true};
+  if(!o)return;
+  const whoOpts=['HOUSEHOLD',...S.settings.incomes.map(p=>p.name.toUpperCase())].map(w=>`<option${o.who===w?' selected':''}>${w}</option>`).join('');
+  modal(id?'Edit one-off':'Add one-off',`
+    <div class="ff"><label>Item name</label><input id="m-on" value="${o.name}"></div>
+    <div class="f2">
+      <div class="ff"><label>Amount ($)</label><input id="m-oa" type="number" value="${o.amount}"></div>
+      <div class="ff"><label>Due date</label><input id="m-od" type="date" value="${o.due||today()}"></div>
+    </div>
+    <div class="f2">
+      <div class="ff"><label>Who</label><select id="m-ow">${whoOpts}</select></div>
+      <div class="ff"><label>Include</label><select id="m-oi"><option value="true"${o.include?' selected':''}>Yes</option><option value="false"${!o.include?' selected':''}>No</option></select></div>
+    </div>`,
+  ()=>{
+    const name=$('m-on').value.trim();if(!name)return;
+    if(id){const ox=S.oneoffs.find(x=>x.id===id);ox.name=name;ox.amount=+$('m-oa').value;ox.due=$('m-od').value;ox.who=$('m-ow').value;ox.include=$('m-oi').value==='true';}
+    else S.oneoffs.push({id:nid(),name,amount:+$('m-oa').value,due:$('m-od').value||today(),who:$('m-ow').value,include:$('m-oi').value==='true'});
+    autoSave();render();
+  });
+}
+
+function loanModal(id){
+  const l=id?S.loans.find(x=>x.id===id):{name:'',original:0,current:0,rate:0,freq:'MONTHLY',payment:0,extra:0};
+  if(!l)return;
+  modal(id?'Edit loan':'Add loan',`
+    <div class="ff"><label>Loan name</label><input id="m-ln" value="${l.name}"></div>
+    <div class="f2">
+      <div class="ff"><label>Starting balance ($)</label><input id="m-lo" type="number" value="${l.original}"></div>
+      <div class="ff"><label>Current balance ($)</label><input id="m-lc" type="number" value="${l.current}"></div>
+    </div>
+    <div class="f2">
+      <div class="ff"><label>Annual rate (%)</label><input id="m-lr" type="number" step="0.01" value="${l.rate}"></div>
+      <div class="ff"><label>Frequency</label><select id="m-lf">${['WEEKLY','FORTNIGHTLY','MONTHLY'].map(f=>`<option${l.freq===f?' selected':''}>${f}</option>`).join('')}</select></div>
+    </div>
+    <div class="ff" style="margin-bottom:0"><label>Regular payment ($)</label><input id="m-lp" type="number" value="${l.payment}"></div>`,
+  ()=>{
+    const name=$('m-ln').value.trim();if(!name)return;
+    if(id){const lx=S.loans.find(x=>x.id===id);lx.name=name;lx.original=+$('m-lo').value;lx.current=+$('m-lc').value;lx.rate=+$('m-lr').value;lx.freq=$('m-lf').value;lx.payment=+$('m-lp').value;}
+    else S.loans.push({id:nid(),name,original:+$('m-lo').value,current:+$('m-lc').value,rate:+$('m-lr').value,freq:$('m-lf').value,payment:+$('m-lp').value,extra:0});
+    autoSave();render();
+  });
+}
+
+function goalModal(id){
+  const g=id?S.goals.find(x=>x.id===id):{name:'',saved:0,target:0,targetDate:''};
+  if(!g)return;
+  modal(id?'Edit goal':'Add goal',`
+    <div class="ff"><label>Goal name</label><input id="m-gn" value="${g.name}"></div>
+    <div class="f2">
+      <div class="ff"><label>Saved ($)</label><input id="m-gs" type="number" value="${g.saved}"></div>
+      <div class="ff"><label>Target ($)</label><input id="m-gt" type="number" value="${g.target}"></div>
+    </div>
+    <div class="ff" style="margin-bottom:0"><label>Target date (optional)</label><input id="m-gd" type="date" value="${g.targetDate||''}"></div>`,
+  ()=>{
+    const name=$('m-gn').value.trim();if(!name)return;
+    if(id){const gx=S.goals.find(x=>x.id===id);gx.name=name;gx.saved=+$('m-gs').value;gx.target=+$('m-gt').value;gx.targetDate=$('m-gd').value;}
+    else S.goals.push({id:nid(),name,saved:+$('m-gs').value,target:+$('m-gt').value,targetDate:$('m-gd').value});
+    autoSave();render();
+  });
+}
+
+function leakModal(id){
+  const l=S.leaks.find(x=>x.id===id);if(!l)return;
+  modal('Edit leak',`
+    <div class="f2">
+      <div class="ff"><label>Date</label><input id="m-ld" type="date" value="${l.date}"></div>
+      <div class="ff"><label>Amount ($)</label><input id="m-la" type="number" value="${l.amount}"></div>
+    </div>
+    <div class="ff"><label>Category</label><input id="m-lc" value="${l.category}"></div>
+    <div class="ff" style="margin-bottom:0"><label>Note</label><input id="m-ln" value="${l.note||''}"></div>`,
+  ()=>{l.date=$('m-ld').value;l.amount=+$('m-la').value;l.category=$('m-lc').value.trim();l.note=$('m-ln').value.trim();autoSave();render();});
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ACTIONS
+// ══════════════════════════════════════════════════════════════════════════════
+function togBill(id)    {const b=S.bills.find(x=>x.id===id);     if(b){b.include=!b.include;autoSave();renderKeepScroll();}}
+function togVar(id)     {const v=S.variables.find(x=>x.id===id); if(v){v.inDueList=!v.inDueList;autoSave();renderKeepScroll();}}
+function togOneoff(id)  {const o=S.oneoffs.find(x=>x.id===id);   if(o){o.include=!o.include;autoSave();renderKeepScroll();}}
+function togglePin(id)  {const b=S.bills.find(x=>x.id===id);     if(b){b.pinned=!b.pinned;autoSave();renderKeepScroll();}}
+function delBill(id)    {if(confirm('Delete this bill?'))  {S.bills=S.bills.filter(x=>x.id!==id);autoSave();render();}}
+function delVar(id)     {if(confirm('Delete?'))            {S.variables=S.variables.filter(x=>x.id!==id);autoSave();render();}}
+function delOneoff(id)  {if(confirm('Delete?'))            {S.oneoffs=S.oneoffs.filter(x=>x.id!==id);autoSave();render();}}
+function delLoan(id)    {if(confirm('Delete this loan?'))  {S.loans=S.loans.filter(x=>x.id!==id);autoSave();render();}}
+function delGoal(id)    {if(confirm('Delete?'))            {S.goals=S.goals.filter(x=>x.id!==id);autoSave();render();}}
+function delLeak(id)    {S.leaks=S.leaks.filter(x=>x.id!==id);autoSave();render();}
+function updExtra(id,v) {const l=S.loans.find(x=>x.id===id);if(l){l.extra=+v;autoSave();render();}}
+function updBalance(id) {const l=S.loans.find(x=>x.id===id);if(!l)return;const v=prompt('New current balance ($):',l.current);if(v!==null&&!isNaN(+v)){l.current=+v;autoSave();render();}}
+function updGoalSaved(id,v){const g=S.goals.find(x=>x.id===id);if(g){g.saved=v;autoSave();}}
+function updGoalDate(id,v) {const g=S.goals.find(x=>x.id===id);if(g){g.targetDate=v;autoSave();render();}}
+
+function addLeak(){
+  const date=$('lk-d').value||today(),cat=$('lk-c').value.trim(),amt=+$('lk-a').value,note=$('lk-n').value.trim();
+  if(!cat||!amt){alert('Please enter a category and amount.');return;}
+  S.leaks.push({id:nid(),date,category:cat,amount:amt,note});
+  $('lk-c').value='';$('lk-a').value='';$('lk-n').value='';
+  autoSave();render();
+}
+
+function setIncomeCount(n){
+  const inc=S.settings.incomes;
+  const cols=['#4a9fff','#8b5cf6','#0fb8a0','#e09a1a'];
+  while(inc.length<n){
+    const startDate=inc.length>0?addDays(inc[inc.length-1].cycleEnd||today(),1):today();
+    inc.push({id:nid(),name:'',cycleStart:startDate,cycleEnd:addDays(startDate,6),cycleType:'FORTNIGHTLY',amount:0,bank:0,alloc:0,color:cols[inc.length]||'#4a9fff'});
+  }
+  while(inc.length>n)inc.pop();
+  autoSave();render();
+}
+
+function toggleTheme(){S.theme=S.theme==='dark'?'light':'dark';document.body.className=S.theme==='light'?'light':'';autoSave();render();}
+function doImport(){STORAGE.importJSON(data=>{S=data;NID=S.nid||100;document.body.className=S.theme==='light'?'light':'';autoSave();render();alert('Imported! Previous data was backed up.');},err=>alert('Import failed: '+err));}
+function doReset(){if(!confirm('Delete ALL data — bills, loans, goals, leaks, settings?\n\nThis cannot be undone.'))return;STORAGE.backup(localStorage.getItem('yorbil_v1'));S=blankState();NID=100;document.body.className='';autoSave();showOnboarding();}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ONBOARDING
+// ══════════════════════════════════════════════════════════════════════════════
+let obStep=0, obData={};
+function showOnboarding(){
+  $('nav').style.display='none';
+  $('ob').style.display='block';
+  obStep=0;
+  obData={householdName:'',incomeCount:1,
+    incomes:[{id:nid(),name:'',cycleStart:today(),cycleEnd:addDays(today(),6),cycleType:'FORTNIGHTLY',amount:0,bank:0,alloc:0,color:'#4a9fff'}],
+    sharedAllocs:[]};
+  renderOB();
+}
+
+function renderOB(){
+  const steps=['welcome','household',...obData.incomes.map((_,i)=>({key:'person',idx:i})),'done'];
+  const prog=steps.map((_,i)=>`<div class="ob-dot${i<obStep?' done':i===obStep?' active':''}"></div>`).join('');
+  let html='';
+  const step=steps[obStep];
+
+  if(step==='welcome'){html=`<div style="margin-bottom:24px">${logoHTML()}</div>
+    <div class="ob-progress">${prog}</div>
+    <div class="ob-title">Your household<br>finance tracker.</div>
+    <div class="ob-sub">Yorbil tracks income, bills, loans and savings cycle to cycle — exactly how money flows through your house.</div>
+    <div class="card card-p" style="margin:0 0 24px">
+      <div style="font-size:13px;color:var(--text2);line-height:1.9">✓ Set your exact coverage dates per person<br>✓ Saves locally on this device<br>✓ Export / import to move between devices<br>✓ Works offline once installed</div>
+    </div>
+    <div class="ob-nav"><div></div><button class="btn primary" onclick="obNext()">Get started →</button></div>`;}
+
+  else if(step==='household'){html=`<div class="ob-progress">${prog}</div>
+    <div class="ob-title">Who's in the household?</div>
+    <div class="ob-sub">Set up how many people's income you want to track.</div>
+    <div class="ff"><label>Household name (optional)</label><input id="ob-hn" type="text" value="${obData.householdName}" placeholder="e.g. Our House"></div>
+    <div class="ff"><label>Number of income earners</label>
+      <select id="ob-nc" onchange="obSetCount(+this.value)">
+        ${[1,2,3,4].map(n=>`<option value="${n}"${obData.incomeCount===n?' selected':''}>${n} ${n===1?'person':'people'}</option>`).join('')}
+      </select>
+    </div>
+    <div class="ob-nav"><button class="btn sm" onclick="obPrev()">← Back</button><button class="btn primary" onclick="obSaveHousehold()">Continue →</button></div>`;}
+
+  else if(step&&step.key==='person'){
+    const i=step.idx,p=obData.incomes[i];
+    html=`<div class="ob-progress">${prog}</div>
+    <div class="ob-title">${obData.incomeCount>1?`Person ${i+1}`:'Your'} income details</div>
+    <div class="ob-sub">Set the exact dates your income covers. You'll update these each pay day.</div>
+    <div style="display:flex;gap:6px;margin-bottom:14px">${COLORS.map(c=>`<div onclick="obData.incomes[${i}].color='${c}';renderOB()" style="width:28px;height:28px;border-radius:50%;background:${c};cursor:pointer;border:3px solid ${(p.color||COLORS[i])===c?"#fff":"transparent"}"></div>`).join('')}</div>
+    <div class="ff"><label>Name</label><input id="ob-pn" type="text" value="${p.name||''}" placeholder="e.g. Dean"></div>
+    <div class="f2">
+      <div class="ff"><label>Coverage starts</label><input id="ob-cs" type="date" value="${p.cycleStart||today()}"></div>
+      <div class="ff"><label>Coverage ends</label><input id="ob-ce" type="date" value="${p.cycleEnd||addDays(today(),6)}"></div>
+    </div>
+    <div class="f2">
+      <div class="ff"><label>Pay cycle type</label><select id="ob-ct">${['WEEKLY','FORTNIGHTLY','MONTHLY'].map(c=>`<option value="${c}"${(p.cycleType||'FORTNIGHTLY')===c?' selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="ff"><label>Income ($)</label><input id="ob-pi" type="number" value="${p.amount||''}" placeholder="0.00"></div>
+    </div>
+    <div class="f2">
+      <div class="ff"><label>Bank balance ($)</label><input id="ob-pb" type="number" value="${p.bank||''}" placeholder="0.00"></div>
+      <div class="ff"><label>Personal alloc ($)</label><input id="ob-pa" type="number" value="${p.alloc||''}" placeholder="0"></div>
+    </div>
+    <div class="ob-nav"><button class="btn sm" onclick="obPrev()">← Back</button><button class="btn primary" onclick="obSavePerson(${i})">Continue →</button></div>`;}
+
+  else if(step==='done'){html=`<div class="ob-progress">${prog}</div>
+    <div class="ob-title">You're all set!</div>
+    <div class="ob-sub">Add your bills, loans, and savings goals to get the full picture.</div>
+    <div class="card card-p" style="margin:0 0 20px">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">Each pay day</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.9">
+        1. Go to <strong style="color:var(--text)">Setup</strong> → update coverage dates, income & bank balance<br>
+        2. Check <strong style="color:var(--text)">Home</strong> for shortfall warnings and rollovers<br>
+        3. Log unplanned spending in <strong style="color:var(--text)">Leaks</strong>
+      </div>
+    </div>
+    <div class="ob-nav"><button class="btn sm" onclick="obPrev()">← Back</button><button class="btn primary" onclick="obFinish()">Start using Yorbil →</button></div>`;}
+
+  $('ob').innerHTML=`<div class="ob-inner">${html}</div>`;
+}
+
+function obNext(){obStep++;renderOB();}
+function obPrev(){if(obStep>0){obStep--;renderOB();}}
+function obSetCount(n){
+  obData.incomeCount=n;
+  const cols=['#4a9fff','#8b5cf6','#0fb8a0','#e09a1a'];
+  while(obData.incomes.length<n){
+    const prev=obData.incomes[obData.incomes.length-1];
+    const startDate=prev?addDays(prev.cycleEnd||today(),1):today();
+    obData.incomes.push({id:nid(),name:'',cycleStart:startDate,cycleEnd:addDays(startDate,6),cycleType:'FORTNIGHTLY',amount:0,bank:0,alloc:0,color:cols[obData.incomes.length]||'#4a9fff'});
+  }
+  while(obData.incomes.length>n)obData.incomes.pop();
+}
+function obSaveHousehold(){obData.householdName=($('ob-hn')||{}).value||'';const nc=$('ob-nc');if(nc)obSetCount(+nc.value);obNext();}
+function obSavePerson(i){
+  const name=($('ob-pn')||{}).value||'';
+  if(!name.trim()){alert('Please enter a name.');return;}
+  obData.incomes[i].name=name.trim();
+  obData.incomes[i].cycleStart=($('ob-cs')||{}).value||today();
+  obData.incomes[i].cycleEnd=($('ob-ce')||{}).value||addDays(today(),6);
+  obData.incomes[i].cycleType=($('ob-ct')||{}).value||'FORTNIGHTLY';
+  obData.incomes[i].amount=+($('ob-pi')||{}).value||0;
+  obData.incomes[i].bank=+($('ob-pb')||{}).value||0;
+  obData.incomes[i].alloc=+($('ob-pa')||{}).value||0;
+  obNext();
+}
+function obFinish(){
+  S.onboarded=true;S.settings.householdName=obData.householdName||'Our Household';
+  S.settings.incomes=obData.incomes;S.settings.sharedAllocs=obData.sharedAllocs;
+  autoSave();$('ob').style.display='none';document.body.className=S.theme==='light'?'light':'';
+  renderNav();PAGE='dashboard';render();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INIT — migrate old anchorDate model to new cycleStart/cycleEnd model
+// ══════════════════════════════════════════════════════════════════════════════
+function init(){
+  const saved=STORAGE.load();S=saved||blankState();NID=S.nid||100;
+
+  // Migration: old model used anchorDate+cycleType, new model uses cycleStart+cycleEnd
+  if(Array.isArray(S.settings.incomes)){
+    S.settings.incomes.forEach(inc=>{
+      if(inc.anchorDate && !inc.cycleStart){
+        inc.cycleStart = inc.anchorDate;
+        inc.cycleEnd   = addDays(inc.anchorDate, 6);
+        delete inc.anchorDate;
+        delete inc.payDay;
+        console.log('[Yorbil] Migrated anchorDate → cycleStart/cycleEnd for', inc.name);
+      }
+    });
+    // Migrate bill.missed and bill.pinned defaults
+    S.bills.forEach(b=>{
+      if(b.missed===undefined) b.missed=false;
+      if(b.pinned===undefined) b.pinned=false;
+    });
+  }
+
+  document.body.className=S.theme==='light'?'light':'';
+  if(!S.onboarded){showOnboarding();}else{renderNav();render();}
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+}
+init();
+</script>
+
+<div id="install-banner" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e2840;border:0.5px solid #4a9fff;border-radius:12px;padding:12px 16px;font-size:13px;color:#e8eef8;z-index:500;box-shadow:0 4px 24px rgba(0,0,0,.4);display:none;align-items:center;gap:10px;max-width:340px;width:calc(100% - 28px)">
+  <div style="flex:1"><strong>Install Yorbil</strong><br><span style="font-size:11px;color:#8ac4ff">Add to home screen for offline access</span></div>
+  <button onclick="doInstall()" style="background:#4a9fff;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">Install</button>
+  <button onclick="document.getElementById('install-banner').style.display='none'" style="background:transparent;color:#8a9bc0;border:none;font-size:16px;cursor:pointer;padding:0 4px">✕</button>
+</div>
+<script>
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const banner = document.getElementById('install-banner');
+  if (banner) { banner.style.display = 'flex'; }
+});
+window.addEventListener('appinstalled', () => {
+  const banner = document.getElementById('install-banner');
+  if (banner) banner.style.display = 'none';
+  deferredPrompt = null;
+});
+function doInstall() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  document.getElementById('install-banner').style.display = 'none';
+}
+</script>
+</body>
+</html>
