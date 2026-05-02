@@ -642,10 +642,26 @@ function modal(title, body, onSave, readOnly) {
 // ══════════════════════════════════════════════════════════════════════════════
 function logoHTML() {
   return `<div style="display:flex;align-items:center;gap:10px">
-    <div style="display:flex;align-items:flex-end;gap:3px;height:26px;flex-shrink:0">
-      ${[{h:'65%',c:'#4a9fff'},{h:'90%',c:'#2a7fff'},{h:'50%',c:'#2ec87a'},{h:'78%',c:'#18a060'}]
-        .map(b=>`<div style="width:7px;height:${b.h};background:${b.c};border-radius:3px"></div>`).join('')}
-    </div>
+    <svg width="28" height="32" viewBox="0 0 28 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="lg-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6ab4ff"/><stop offset="100%" stop-color="#2a6fff"/></linearGradient>
+        <linearGradient id="lg-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4de8a0"/><stop offset="100%" stop-color="#18b86a"/></linearGradient>
+      </defs>
+      <!-- Left bar (blue, tallest) -->
+      <rect x="1" y="2" width="5" height="14" rx="2.5" fill="url(#lg-b)"/>
+      <!-- Centre bar (blue, tallest) -->
+      <rect x="8" y="0" width="5" height="16" rx="2.5" fill="url(#lg-b)"/>
+      <!-- Centre-right bar (green, medium) -->
+      <rect x="15" y="5" width="5" height="11" rx="2.5" fill="url(#lg-g)"/>
+      <!-- Right bar (green, tall) -->
+      <rect x="22" y="2" width="5" height="14" rx="2.5" fill="url(#lg-g)"/>
+      <!-- Left Y stem -->
+      <path d="M3.5 16 C3.5 22 11 24 11 28 L11 32" stroke="url(#lg-b)" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+      <!-- Right Y stem -->
+      <path d="M24.5 16 C24.5 22 17 24 17 28 L17 32" stroke="url(#lg-g)" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+      <!-- Y joint -->
+      <path d="M11 32 L14 32 L17 32" stroke="#1a9060" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+    </svg>
     <div>
       <div style="font-size:17px;font-weight:700;letter-spacing:3px;color:var(--text);line-height:1">YORBIL</div>
       <div style="font-size:8px;font-weight:600;letter-spacing:2px;color:var(--text2);text-transform:uppercase;margin-top:1px">Household Finance</div>
