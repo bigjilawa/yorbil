@@ -911,11 +911,17 @@ function dashH() {
       const oneoffs = oneoffsInWindow(aw.start, aw.end, activePerson.name.toUpperCase());
       availableBalance = activePerson.amount - billTotal - oneoffs - leaks - (activePerson.alloc||0) - sharedAlloc;
     }
-    const shortfalls = upcomingAll.filter(item => availableBalance - item.amount < 0);
+    // For each upcoming item, calculate available EXCLUDING that item (avoid double-counting)
+    // availableBalance already has all future bills subtracted, so add back this item's amount
+    const shortfalls = upcomingAll.filter(item => {
+      const avail = availableBalance + item.amount; // add back to avoid double-count
+      return avail < item.amount; // i.e. we can't afford it
+    });
     if (shortfalls.length) {
       shortfallBanner = shortfalls.map(item => {
+        const avail = availableBalance + item.amount; // available before this bill
+        const shortAmt = Math.max(0, item.amount - avail);
         const diff = daysBetween(t, item.nd);
-        const shortAmt = Math.abs(availableBalance - item.amount);
         const typeTag = item.type === 'oneoff' ? ' <span style="font-size:10px;opacity:.8">(one-off)</span>' : '';
         return `<div style="background:var(--amber-d);border:0.5px solid var(--amber);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--amber-t)">
           ⚠ <strong>${item.name}</strong>${typeTag} ${fmt(item.amount)} due ${diff===0?'today':diff===1?'tomorrow':'in '+diff+'d'} — you may be <strong>${fmt(shortAmt)} short</strong>
