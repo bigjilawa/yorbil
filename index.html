@@ -874,47 +874,64 @@ function dashH() {
 
   // Shortfall warning — bills due in next 48hrs
   let shortfallBanner = '';
-  const in48 = addDays(t, 2);
-  // Check upcoming bills AND one-offs due in next 48hrs
-  const upcomingBills = S.bills.filter(b => {
-    if (!b.include || b.missed) return false;
-    const nd = nextDue(b); return nd && nd >= t && nd <= in48;
-  });
-  const upcomingOneoffs = S.oneoffs.filter(o => {
-    return o.include && !o.paid && o.due && o.due >= t && o.due <= in48;
-  });
-  const upcomingAll = [
-    ...upcomingBills.map(b => ({ name:b.name, amount:b.amount, nd:nextDue(b), type:'bill' })),
-    ...upcomingOneoffs.map(o => ({ name:o.name, amount:+(o.actualAmount)||o.amount, nd:o.due, type:'oneoff' }))
-  ];
-  if (upcomingAll.length && inc.length > 0) {
+  if (inc.length > 0) {
     const activePerson = inc[activeIdx];
     const aw = windows[activeIdx];
     const bank = +(activePerson.bank||0);
-    let availableBalance;
-    if (bank > 0) {
-      // Bank balance minus everything still to come out today and onwards
-      const billItems = billsInWindow(aw.start, windows[activeIdx].end);
-      const futureBills = billItems.filter(b => b.type !== 'oneoff' && b.nd >= t).reduce((s,b)=>s+b.amount,0);
+
+    // BUG FIX 1: Cap the 48hr window to the active person's cycle end
+    // so we don't show warnings for the next person's bills
+    const in48 = addDays(t, 2) <= aw.end ? addDays(t, 2) : aw.end;
+
+    // Only check bills within the active person's own cycle window
+    const upcomingBills = S.bills.filter(b => {
+      if (!b.include || b.missed) return false;
+      const nd = nextDue(b);
+      return nd && nd >= t && nd <= in48 && nd >= aw.start && nd <= aw.end;
+    });
+    const upcomingOneoffs = S.oneoffs.filter(o =>
+      o.include && !o.paid && o.due && o.due >= t && o.due <= in48 && o.due >= aw.start && o.due <= aw.end
+    );
+    const upcomingAll = [
+      ...upcomingBills.map(b => ({ name:b.name, amount:b.amount, nd:nextDue(b), type:'bill' })),
+      ...upcomingOneoffs.map(o => ({ name:o.name, amount:+(o.actualAmount)||o.amount, nd:o.due, type:'oneoff' }))
+    ];
+
+    if (upcomingAll.length && bank > 0) {
+      // BUG FIX 2: availableBalance = bank minus ALL remaining bills in this cycle from today
+      // This is the total shortfall position, not per-bill
+      const billItems = billsInWindow(aw.start, aw.end);
+      const futureBills = billItems.filter(b => b.type !== 'oneoff' && !b.paid && b.nd >= t).reduce((s,b)=>s+b.amount,0);
       const futureOneoffs = S.oneoffs.filter(o => o.include && !o.paid && o.due >= t && o.due >= aw.start && o.due <= aw.end).reduce((s,o)=>s+(+(o.actualAmount)||o.amount),0);
-      availableBalance = bank - futureBills - futureOneoffs;
-    } else {
+      const availableBalance = bank - futureBills - futureOneoffs;
+
+      // Only warn if we genuinely can't cover everything remaining
+      if (availableBalance < 0) {
+        const totalShort = Math.abs(availableBalance);
+        // BUG FIX 3: Show ONE clear shortfall banner, not one per bill
+        // (per-bill banners were double-counting by subtracting each bill twice)
+        const billNames = upcomingAll.map(i => i.name).join(', ');
+        const nextDue2 = upcomingAll.sort((a,b)=>a.nd.localeCompare(b.nd))[0];
+        const diff = daysBetween(t, nextDue2.nd);
+        shortfallBanner = `<div style="background:var(--amber-d);border:0.5px solid var(--amber);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--amber-t)">
+          ⚠ <strong>Shortfall warning</strong> — bank balance ${fmt(bank)} may be <strong>${fmt(totalShort)} short</strong> to cover remaining bills this cycle<br>
+          <span style="font-size:11px;opacity:.85;margin-top:4px;display:block">Upcoming: ${billNames}</span>
+        </div>`;
+      }
+    } else if (upcomingAll.length && bank === 0) {
+      // No bank entered — use projected calculation
       const billItems = billsInWindow(aw.start, aw.end);
       const billTotal = billItems.filter(b => b.type !== 'oneoff').reduce((s,i)=>s+i.amount,0);
       const leaks = leaksInWindow(aw.start, aw.end);
       const oneoffs = oneoffsInWindow(aw.start, aw.end, activePerson.name.toUpperCase());
-      availableBalance = activePerson.amount - billTotal - oneoffs - leaks - (activePerson.alloc||0) - sharedAlloc;
-    }
-    const shortfalls = upcomingAll.filter(item => availableBalance - item.amount < 0);
-    if (shortfalls.length) {
-      shortfallBanner = shortfalls.map(item => {
-        const diff = daysBetween(t, item.nd);
-        const shortAmt = Math.abs(availableBalance - item.amount);
-        const typeTag = item.type === 'oneoff' ? ' <span style="font-size:10px;opacity:.8">(one-off)</span>' : '';
-        return `<div style="background:var(--amber-d);border:0.5px solid var(--amber);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--amber-t)">
-          ⚠ <strong>${item.name}</strong>${typeTag} ${fmt(item.amount)} due ${diff===0?'today':diff===1?'tomorrow':'in '+diff+'d'} — you may be <strong>${fmt(shortAmt)} short</strong>
+      const projectedLeft = activePerson.amount - billTotal - oneoffs - leaks - (activePerson.alloc||0) - sharedAlloc;
+      if (projectedLeft < 0) {
+        const billNames = upcomingAll.map(i => i.name).join(', ');
+        shortfallBanner = `<div style="background:var(--amber-d);border:0.5px solid var(--amber);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--amber-t)">
+          ⚠ <strong>Shortfall warning</strong> — projected end of cycle is <strong>${fmt(Math.abs(projectedLeft))} short</strong><br>
+          <span style="font-size:11px;opacity:.85;margin-top:4px;display:block">Upcoming: ${billNames}</span>
         </div>`;
-      }).join('');
+      }
     }
   }
 
