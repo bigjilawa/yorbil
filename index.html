@@ -1055,16 +1055,35 @@ function dashH() {
         <div class="row-r"><div class="row-amt" style="${isCovered?'color:var(--text3)':'color:var(--text)'}">${fmt(item.amount)}</div>${dayPill(item.nd)}</div>
       </div>`;
     });
-    const billsOnly = items.filter(i=>i.type!=='oneoff'&&!coveredBillIds.has(i.id)).reduce((s,i)=>s+i.amount,0);
-    const oneoffOnly = items.filter(i=>i.type==='oneoff').reduce((s,i)=>s+i.amount,0);
-    h += `<div class="row" style="background:var(--bg3)">
-      <span style="font-size:12px;font-weight:600;color:var(--text2)">Bills total</span>
-      <span style="font-family:var(--fm);font-weight:700;color:var(--blue-t)">${fmt(billsOnly)}</span>
-    </div>`;
-    if (oneoffOnly > 0) {
+    const billsOnly  = items.filter(i => i.type!=='oneoff' && i.type!=='var' && !coveredBillIds.has(i.id)).reduce((s,i)=>s+i.amount,0);
+    const varsOnly   = items.filter(i => i.type==='var').reduce((s,i)=>s+i.amount,0);
+    const oneoffOnly = items.filter(i => i.type==='oneoff').reduce((s,i)=>s+i.amount,0);
+    const grandTotal = billsOnly + varsOnly + oneoffOnly;
+    const hasExtras  = varsOnly > 0 || oneoffOnly > 0;
+
+    if (hasExtras) {
+      // Show breakdown then grand total
       h += `<div class="row" style="background:var(--bg3)">
-        <span style="font-size:12px;font-weight:600;color:var(--text2)">One-offs total</span>
-        <span style="font-family:var(--fm);font-weight:700;color:var(--purple-t)">${fmt(oneoffOnly)}</span>
+        <span style="font-size:12px;font-weight:500;color:var(--text3)">Bills</span>
+        <span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(billsOnly)}</span>
+      </div>`;
+      if (varsOnly > 0) h += `<div class="row" style="background:var(--bg3)">
+        <span style="font-size:12px;font-weight:500;color:var(--text3)">Variables</span>
+        <span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(varsOnly)}</span>
+      </div>`;
+      if (oneoffOnly > 0) h += `<div class="row" style="background:var(--bg3)">
+        <span style="font-size:12px;font-weight:500;color:var(--text3)">One-offs</span>
+        <span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(oneoffOnly)}</span>
+      </div>`;
+      h += `<div class="row" style="background:var(--bg4);border-top:1.5px solid var(--border2)">
+        <span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span>
+        <span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(grandTotal)}</span>
+      </div>`;
+    } else {
+      // Bills only — one clean total
+      h += `<div class="row" style="background:var(--bg3)">
+        <span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span>
+        <span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(grandTotal)}</span>
       </div>`;
     }
     h += '</div>';
