@@ -8,9 +8,9 @@
 <meta name="apple-mobile-web-app-title" content="Yorbil">
 <meta name="theme-color" content="#2ec87a">
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="32x32" href="icon-192.png">
-<link rel="shortcut icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="yorbil-icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="yorbil-icon-192.png">
+<link rel="shortcut icon" href="yorbil-icon-192.png">
 <title>Yorbil</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap');
@@ -378,10 +378,12 @@ const STORAGE = (function() {
     }
     // Patch variable objects for new fields
     if (Array.isArray(parsed.variables)) {
-      parsed.variables = parsed.variables.map(v =>
-        applyDefaults(v, { id:0, name:'', freq:'WEEKLY', amount:0, dayOfWeek:1,
-          inDueList:false, paid:false, paidDate:null, actualAmount:null, history:[] })
-      );
+      parsed.variables = parsed.variables.map(v => {
+        const mv = applyDefaults(v, { id:0, name:'', freq:'WEEKLY', amount:0,
+          due:null, include:true, paid:false, paidDate:null, actualAmount:null, history:[] });
+        if (mv.include === undefined) mv.include = (v.inDueList !== undefined) ? v.inDueList : true;
+        return mv;
+      });
     }
     // Migrate actionLog
     if (!Array.isArray(parsed.actionLog)) parsed.actionLog = [];
@@ -566,17 +568,9 @@ function billsInWindow(ws, we) {
     const nd = billOccurrenceInWindow(b, ws, we);
     if (nd) items.push({ name:b.name, nd, amount:b.amount, type:'bill', id:b.id });
   });
-  S.variables.filter(v => v.inDueList).forEach(v => {
-    const wkAmt = weeklyAmt(v);
-    if (wkAmt > 0) {
-      const target = v.dayOfWeek || 1;
-      for (let i = 0; i <= 7; i++) {
-        const dt = new Date(ws+'T00:00:00'); dt.setDate(dt.getDate()+i);
-        const d = dt.toISOString().split('T')[0];
-        if (d > we) break;
-        if (dt.getDay() === target) { items.push({ name:v.name, nd:d, amount:wkAmt, type:'var', id:v.id }); break; }
-      }
-    }
+  // Variables — date-based, one occurrence per window, hide if already logged
+  S.variables.filter(v => v.include && !v.paid && v.due && v.due >= ws && v.due <= we).forEach(v => {
+    items.push({ name:v.name, nd:v.due, amount:v.amount, type:'var', id:v.id, paid:v.paid });
   });
   S.oneoffs.filter(o => o.include && !o.paid && o.due && o.due >= ws && o.due <= we)
     .forEach(o => items.push({ name:o.name, nd:o.due, amount:+(o.actualAmount)||o.amount, type:'oneoff', id:o.id, displayOnly:true }));
@@ -911,17 +905,11 @@ function dashH() {
       const oneoffs = oneoffsInWindow(aw.start, aw.end, activePerson.name.toUpperCase());
       availableBalance = activePerson.amount - billTotal - oneoffs - leaks - (activePerson.alloc||0) - sharedAlloc;
     }
-    // For each upcoming item, calculate available EXCLUDING that item (avoid double-counting)
-    // availableBalance already has all future bills subtracted, so add back this item's amount
-    const shortfalls = upcomingAll.filter(item => {
-      const avail = availableBalance + item.amount; // add back to avoid double-count
-      return avail < item.amount; // i.e. we can't afford it
-    });
+    const shortfalls = upcomingAll.filter(item => availableBalance - item.amount < 0);
     if (shortfalls.length) {
       shortfallBanner = shortfalls.map(item => {
-        const avail = availableBalance + item.amount; // available before this bill
-        const shortAmt = Math.max(0, item.amount - avail);
         const diff = daysBetween(t, item.nd);
+        const shortAmt = Math.abs(availableBalance - item.amount);
         const typeTag = item.type === 'oneoff' ? ' <span style="font-size:10px;opacity:.8">(one-off)</span>' : '';
         return `<div style="background:var(--amber-d);border:0.5px solid var(--amber);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--amber-t)">
           ⚠ <strong>${item.name}</strong>${typeTag} ${fmt(item.amount)} due ${diff===0?'today':diff===1?'tomorrow':'in '+diff+'d'} — you may be <strong>${fmt(shortAmt)} short</strong>
@@ -1050,28 +1038,16 @@ function dashH() {
         <div class="row-r"><div class="row-amt" style="${isCovered?'color:var(--text3)':'color:var(--text)'}">${fmt(item.amount)}</div>${dayPill(item.nd)}</div>
       </div>`;
     });
-    const billsOnly  = items.filter(i=>i.type!=='oneoff'&&!coveredBillIds.has(i.id)).reduce((s,i)=>s+i.amount,0);
-    const oneoffOnly  = items.filter(i=>i.type==='oneoff').reduce((s,i)=>s+i.amount,0);
-    const grandTotal  = billsOnly + oneoffOnly;
+    const billsOnly = items.filter(i=>i.type!=='oneoff'&&!coveredBillIds.has(i.id)).reduce((s,i)=>s+i.amount,0);
+    const oneoffOnly = items.filter(i=>i.type==='oneoff').reduce((s,i)=>s+i.amount,0);
+    h += `<div class="row" style="background:var(--bg3)">
+      <span style="font-size:12px;font-weight:600;color:var(--text2)">Bills total</span>
+      <span style="font-family:var(--fm);font-weight:700;color:var(--blue-t)">${fmt(billsOnly)}</span>
+    </div>`;
     if (oneoffOnly > 0) {
-      // Show breakdown rows when there are one-offs
       h += `<div class="row" style="background:var(--bg3)">
-        <span style="font-size:12px;font-weight:500;color:var(--text3)">Bills</span>
-        <span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(billsOnly)}</span>
-      </div>`;
-      h += `<div class="row" style="background:var(--bg3)">
-        <span style="font-size:12px;font-weight:500;color:var(--text3)">One-offs</span>
-        <span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(oneoffOnly)}</span>
-      </div>`;
-      h += `<div class="row" style="background:var(--bg4);border-top:1px solid var(--border2)">
-        <span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span>
-        <span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(grandTotal)}</span>
-      </div>`;
-    } else {
-      // No one-offs — just show the bills total clearly
-      h += `<div class="row" style="background:var(--bg3)">
-        <span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span>
-        <span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(billsOnly)}</span>
+        <span style="font-size:12px;font-weight:600;color:var(--text2)">One-offs total</span>
+        <span style="font-family:var(--fm);font-weight:700;color:var(--purple-t)">${fmt(oneoffOnly)}</span>
       </div>`;
     }
     h += '</div>';
@@ -1239,20 +1215,26 @@ function billsH() {
       const hist=v.history||[];
       const lastEntry=hist.length?hist[hist.length-1]:null;
       const avgActual=hist.length?Math.round(hist.reduce((s,h)=>s+h.actual,0)/hist.length):null;
-      return `<div class="row">
-      <div class="row-l">
-        <div class="row-lbl">${v.name}</div>
-        <div class="row-sub">${v.freq} · ${DAYS_F[v.dayOfWeek||1]} · ${fmt(weeklyAmt(v))}/wk${lastEntry?` · last actual ${fmt(lastEntry.actual)}`:''}${avgActual&&avgActual!==v.amount?` · avg ${fmt(avgActual)}`:''}
+      const isPaid=!!v.paid;
+      const nd=v.due||today();
+      return `<div class="bill-row" style="${isPaid?'opacity:0.75':''}">
+        <div class="bill-row-top">
+          <div class="row-l">
+            <div class="row-lbl">${v.name}${isPaid?' <span class="pill p-g" style="font-size:9px;margin-left:4px">LOGGED</span>':''}</div>
+            <div class="row-sub">${v.freq} · due ${fmtD(nd)} · budget ${fmt(v.amount)}${isPaid?` · actual ${fmt(v.actualAmount||v.amount)}`:''}${avgActual&&avgActual!==v.amount?` · avg ${fmt(avgActual)}`:''}${lastEntry&&!isPaid?` · last ${fmt(lastEntry.actual)}`:''}</div>
+          </div>
+          <div class="bill-row-amt">
+            <div class="row-amt" style="${isPaid?'color:var(--green-t)':'color:var(--text)'}">${fmt(isPaid?v.actualAmount||v.amount:v.amount)}</div>
+            ${isPaid?'<span class="pill p-g" style="font-size:9px">paid</span>':dayPill(nd)}
+          </div>
         </div>
-      </div>
-      <div class="row-r" style="flex-direction:row;align-items:center;gap:4px">
-        <div class="row-amt">${fmt(v.amount)}</div>
-        <button class="btn-icon" onclick="markVarPaid(${v.id})" title="Log actual spend" style="color:var(--green-t)">✓</button>
-        <div class="tog${v.inDueList?' on':''}" onclick="togVar(${v.id})" title="Show in due list"><div class="tog-dot"></div></div>
-        <button class="btn-icon" onclick="varModal(${v.id})">✎</button>
-        <button class="btn-icon" onclick="delVar(${v.id})" style="color:var(--red-t)">✕</button>
-      </div>
-    </div>`;}).join('') : '<div class="empty">No variables yet</div>'}
+        <div class="bill-row-actions">
+          ${!isPaid?`<button class="bill-btn green" onclick="markVarPaid(${v.id})">✓ Log spend</button>`:''}
+          <button class="bill-btn" onclick="varModal(${v.id})">✎ Edit</button>
+          ${isPaid?`<button class="bill-btn teal" onclick="resetVar(${v.id})">↺ New cycle</button>`:''}
+          <button class="bill-btn red" onclick="delVar(${v.id})">✕</button>
+        </div>
+      </div>`;}).join('') : '<div class="empty">No variables yet</div>'}
   </div>
   <div class="sec-lbl">One-off expenses</div>
   <div class="card">
@@ -1812,7 +1794,7 @@ function histModal(id){
 }
 
 function varModal(id){
-  const v=id?S.variables.find(x=>x.id===id):{name:'',freq:'WEEKLY',amount:0,dayOfWeek:1,inDueList:false,paid:false,paidDate:null,actualAmount:null,history:[]};
+  const v=id?S.variables.find(x=>x.id===id):{name:'',freq:'WEEKLY',amount:0,due:null,include:true,paid:false,paidDate:null,actualAmount:null,history:[]};
   if(!v)return;
   const hist=v.history||[];
   const avgActual=hist.length?Math.round(hist.reduce((s,h)=>s+h.actual,0)/hist.length):null;
@@ -1820,17 +1802,26 @@ function varModal(id){
     <div class="ff"><label>Category name</label><input id="m-vn" value="${v.name}"></div>
     <div class="f2">
       <div class="ff"><label>Frequency</label><select id="m-vf">${['WEEKLY','FORTNIGHTLY','MONTHLY'].map(f=>`<option${v.freq===f?' selected':''}>${f}</option>`).join('')}</select></div>
-      <div class="ff"><label>Budgeted amount ($)</label><input id="m-va" type="number" value="${v.amount}"></div>
+      <div class="ff"><label>Budget this cycle ($)</label><input id="m-va" type="number" value="${v.amount}" placeholder="0"></div>
     </div>
-    <div class="ff"><label>Expected day</label><select id="m-vd">${DAYS_F.map((d,i)=>`<option value="${i}"${(v.dayOfWeek||1)===i?' selected':''}>${d}</option>`).join('')}</select></div>
-    <div class="ff" style="margin-bottom:0"><label>Show in due list & deduct?</label>
-      <select id="m-vi"><option value="false"${!v.inDueList?' selected':''}>No — budget reference only</option><option value="true"${v.inDueList?' selected':''}>Yes — deduct weekly</option></select>
+    <div class="ff" style="margin-bottom:0">
+      <label>Due date this cycle</label>
+      <input id="m-vdue" type="date" value="${v.due||today()}">
+      <div style="font-size:11px;color:var(--text3);margin-top:3px">Update each cycle. Changing amount or date never affects past history.</div>
     </div>
-    ${avgActual!==null?`<div style="margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2)">Average actual spend: <strong style="color:var(--text)">${fmt(avgActual)}</strong> over ${hist.length} cycles${avgActual<v.amount?' — consider reducing budget to '+fmt(avgActual):''}</div>`:''}`,
+    ${avgActual!==null?`<div style="margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2)">Average actual spend: <strong style="color:var(--text)">${fmt(avgActual)}</strong> over ${hist.length} logs${avgActual<v.amount?' · consider reducing to '+fmt(avgActual):''}</div>`:''}`,
   ()=>{
     const name=$('m-vn').value.trim();if(!name)return;
-    if(id){const vx=S.variables.find(x=>x.id===id);vx.name=name;vx.freq=$('m-vf').value;vx.amount=+$('m-va').value;vx.dayOfWeek=+$('m-vd').value;vx.inDueList=$('m-vi').value==='true';}
-    else S.variables.push({id:nid(),name,freq:$('m-vf').value,amount:+$('m-va').value,dayOfWeek:+$('m-vd').value,inDueList:$('m-vi').value==='true',paid:false,paidDate:null,actualAmount:null,history:[]});
+    const due=$('m-vdue').value||today();
+    const amount=+$('m-va').value||0;
+    if(id){
+      const vx=S.variables.find(x=>x.id===id);
+      vx.name=name; vx.freq=$('m-vf').value; vx.amount=amount; vx.due=due;
+      // If due date changed it's a new cycle — reset paid so log button reappears
+      if(vx.paid && vx.paidDate && due !== vx.paidDate){ vx.paid=false; vx.include=true; vx.actualAmount=null; }
+    } else {
+      S.variables.push({id:nid(),name,freq:$('m-vf').value,amount,due,include:true,paid:false,paidDate:null,actualAmount:null,history:[]});
+    }
     autoSave();renderKeepScroll();
   });
 }
@@ -1854,6 +1845,8 @@ function markVarPaid(id){
     v.history.push({date,budgeted:v.amount,actual,diff});
     v.actualAmount=actual;
     v.paidDate=date;
+    v.paid=true;     // Mark logged — hides ✓ button
+    v.include=false; // Stop deducting from projections this cycle
     // Log overspend as leak
     if(diff>0){
       S.leaks.push({id:nid(),date,category:`Variable overspend — ${v.name}`,amount:diff,note:`Budgeted ${fmt(v.amount)}, spent ${fmt(actual)}`});
@@ -1984,7 +1977,23 @@ function leakModal(id){
 // ACTIONS
 // ══════════════════════════════════════════════════════════════════════════════
 function togBill(id)    {const b=S.bills.find(x=>x.id===id);     if(b){b.include=!b.include;autoSave();renderKeepScroll();}}
-function togVar(id)     {const v=S.variables.find(x=>x.id===id); if(v){v.inDueList=!v.inDueList;autoSave();renderKeepScroll();}}
+function togVar(id) {
+  const v=S.variables.find(x=>x.id===id);
+  if(!v)return;
+  v.include=!v.include;
+  autoSave();renderKeepScroll();
+}
+function resetVar(id) {
+  const v=S.variables.find(x=>x.id===id);if(!v)return;
+  if(!confirm('Reset '+v.name+' for a new cycle?\nThis clears paid status so you can log again. History is kept.'))return;
+  v.paid=false; v.include=true; v.actualAmount=null;
+  if(v.due){
+    if(v.freq==='WEEKLY')           v.due=addDays(v.due,7);
+    else if(v.freq==='FORTNIGHTLY') v.due=addDays(v.due,14);
+    else if(v.freq==='MONTHLY')     v.due=addMonths(v.due,1);
+  }
+  autoSave();renderKeepScroll();
+}
 function togOneoff(id)  {const o=S.oneoffs.find(x=>x.id===id);   if(o){o.include=!o.include;autoSave();renderKeepScroll();}}
 function togglePin(id)  {const b=S.bills.find(x=>x.id===id);     if(b){b.pinned=!b.pinned;autoSave();renderKeepScroll();}}
 function delBill(id) {
