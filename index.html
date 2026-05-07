@@ -630,7 +630,7 @@ function modal(title, body, onSave, readOnly) {
     </div></div>`;
   el.addEventListener('click', e => { if(e.target===el) el.remove(); });
   document.body.appendChild(el);
-  if (!readOnly) $('mok').onclick = () => { onSave(); el.remove(); };
+  if (!readOnly) $('mok').onclick = () => { onSave(); if($('modal-el')) $('modal-el').remove(); };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1612,7 +1612,7 @@ function markPaid(id) {
       <div style="font-size:11px;color:var(--text3);margin-top:3px">Change if the amount differed from budgeted</div>
     </div>
     <div class="ff" style="margin-bottom:0"><label>Date paid</label><input id="m-ap" type="date" value="${today()}"></div>
-    ${linkedLoan?`<div style="margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2)">Linked to <strong style="color:var(--text)">${linkedLoan.name}</strong> — balance will update automatically</div>`:''}`,
+    ${linkedLoan?('<div style="margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2)">Linked to <strong style="color:var(--text)">'+linkedLoan.name+'</strong> — balance will update automatically</div>'):''}`,
   ()=>{
     const actualAmt=+$('m-aa').value||b.amount;
     const actualDate=$('m-ap').value||today();
