@@ -980,7 +980,7 @@ function dashH() {
       : 0;
     // displayLeft: if bank entered → bank minus bills/oneoffs still to come out
     // if no bank → use full projected calculation
-    const displayLeft = bank > 0 ? Math.max(0, bank - remainingBills - remainingOneoffs) : left;
+    const displayLeft = bank > 0 ? bank - remainingBills - remainingOneoffs : left;
     const displayOver = displayLeft < 0;
     const displayLeftColor = displayOver ? 'var(--red-t)' : 'var(--green-t)';
     const diffColor   = bankDiff!==null && bankDiff<0 ? 'var(--red-t)' : 'var(--green-t)';
@@ -1004,7 +1004,7 @@ function dashH() {
         </div>
       </div>
       ${i>0 && rollover>0 ? `<div style="padding:8px 14px;font-size:12px;color:var(--teal-t);background:var(--teal-d);border-bottom:1px solid var(--border);border-left:4px solid var(--teal)">Opening pot: ${fmt(rollover)} + ${fmt(person.amount)} = <strong>${fmt(openingPot)}</strong></div>` : ''}
-      ${displayOver ? `<div class="overspend" style="margin:0;border-radius:0;border-left:4px solid var(--red)">⚠ Overspend — ${fmt(Math.abs(left))} over budget this cycle</div>` : ''}
+      ${displayOver ? `<div class="overspend" style="margin:0;border-radius:0;border-left:4px solid var(--red)">⚠ Shortfall — ${fmt(Math.abs(displayLeft))} more needed to cover this cycle</div>` : ''}
       <div style="padding:0 14px;border-bottom:2px solid var(--border);border-left:4px solid ${c};background:var(--bg2)">
         <div class="row" style="padding-left:0;padding-right:0"><span class="row-lbl" style="color:var(--text)">Bills this cycle</span><span class="row-amt" style="color:var(--red-t)">−${fmt(billTotal)}</span></div>
         ${oneoffs>0 ? `<div class="row" style="padding-left:0;padding-right:0"><span class="row-lbl" style="color:var(--text)">One-offs</span><span class="row-amt" style="color:var(--red-t)">−${fmt(oneoffs)}</span></div>` : ''}
