@@ -956,7 +956,7 @@ function dashH() {
     const boundaryIds   = new Set(boundaryBills.map(b => b.id));
     const boundaryAmt   = boundaryBills.reduce((s,b) => s+b.amount, 0);
     const billTotal     = billItems.reduce((s,b) => (boundaryIds.has(b.id) || b.type==='oneoff') ? s : s+b.amount, 0);
-    const oneoffs       = oneoffsInWindow(start, extEnd, person.name.toUpperCase());
+    const oneoffs       = oneoffsInWindow(start, extEnd, null); // ALL one-offs in window, not filtered by person
     const leaks         = leaksInWindow(start, extEnd);
     const personalAlloc = +(person.alloc||0);
     const openingPot    = rollover + person.amount;
@@ -970,14 +970,13 @@ function dashH() {
     const projected = openingPot - billTotal - oneoffs - personalAlloc - (i===0 ? sharedAlloc : 0);
     const bank      = +(person.bank||0);
     const bankDiff  = bank > 0 ? bank - projected : null;
-    // Bills still to come out = bills due AFTER today in this window
+    // Bills still to come out = bills due TODAY and after in this window
     const t2 = today();
     const remainingBills = bank > 0
-      ? billItems.filter(b => !boundaryIds.has(b.id) && b.type!=='oneoff' && b.nd > t2).reduce((s,b)=>s+b.amount,0)
+      ? billItems.filter(b => !boundaryIds.has(b.id) && b.type!=='oneoff' && b.nd >= t2).reduce((s,b)=>s+b.amount,0)
       : 0;
     const remainingOneoffs = bank > 0
-      ? S.oneoffs.filter(o => o.include && !o.paid && o.due > t2 && o.due >= start && o.due <= extEnd
-          && (o.who === person.name.toUpperCase() || o.who === 'HOUSEHOLD')).reduce((s,o)=>s+(+(o.actualAmount)||o.amount),0)
+      ? S.oneoffs.filter(o => o.include && !o.paid && o.due >= t2 && o.due >= start && o.due <= extEnd).reduce((s,o)=>s+(+(o.actualAmount)||o.amount),0)
       : 0;
     // displayLeft: if bank entered → bank minus bills/oneoffs still to come out
     // if no bank → use full projected calculation
