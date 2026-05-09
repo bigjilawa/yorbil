@@ -378,15 +378,13 @@ const STORAGE = (function() {
     }
     // Patch variable objects for new fields
     if (Array.isArray(parsed.variables)) {
-      parsed.variables = parsed.variables.map(v => {
-        const mv = applyDefaults(v, { id:0, name:'', freq:'WEEKLY', amount:0,
-          due:null, include:true, paid:false, paidDate:null, actualAmount:null, history:[] });
-        if (mv.include === undefined) mv.include = (v.inDueList !== undefined) ? v.inDueList : true;
-        return mv;
-      });
+      parsed.variables = parsed.variables.map(v =>
+        (function(v2){const mv=applyDefaults(v2,{id:0,name:'',freq:'WEEKLY',amount:0,due:null,include:true,paid:false,paidDate:null,actualAmount:null,history:[]});if(mv.include===undefined)mv.include=(v2.inDueList!==undefined)?v2.inDueList:true;return mv;})(v)
+      );
     }
     // Migrate actionLog
     if (!Array.isArray(parsed.actionLog)) parsed.actionLog = [];
+    if (!Array.isArray(parsed.leakArchive)) parsed.leakArchive = [];
     // Migrate bill paymentPlan field
     if (Array.isArray(parsed.bills)) {
       parsed.bills = parsed.bills.map(b =>
@@ -450,7 +448,7 @@ const nid = () => NID++;
 function blankState() {
   return { version:2, onboarded:false, theme:'dark', nid:100, lastSaved:null,
     settings:{ householdName:'', incomes:[], sharedAllocs:[] },
-    bills:[], variables:[], oneoffs:[], loans:[], goals:[], leaks:[], actionLog:[] };
+    bills:[], variables:[], oneoffs:[], loans:[], goals:[], leaks:[], leakArchive:[], actionLog:[] };
 }
 
 let saveDot, saveTimer;
@@ -568,9 +566,8 @@ function billsInWindow(ws, we) {
     const nd = billOccurrenceInWindow(b, ws, we);
     if (nd) items.push({ name:b.name, nd, amount:b.amount, type:'bill', id:b.id });
   });
-  // Variables — date-based, one occurrence per window, hide if already logged
   S.variables.filter(v => v.include && !v.paid && v.due && v.due >= ws && v.due <= we).forEach(v => {
-    items.push({ name:v.name, nd:v.due, amount:v.amount, type:'var', id:v.id, paid:v.paid });
+    items.push({ name:v.name, nd:v.due, amount:v.amount, type:'var', id:v.id });
   });
   S.oneoffs.filter(o => o.include && !o.paid && o.due && o.due >= ws && o.due <= we)
     .forEach(o => items.push({ name:o.name, nd:o.due, amount:+(o.actualAmount)||o.amount, type:'oneoff', id:o.id, displayOnly:true }));
@@ -630,7 +627,7 @@ function modal(title, body, onSave, readOnly) {
     </div></div>`;
   el.addEventListener('click', e => { if(e.target===el) el.remove(); });
   document.body.appendChild(el);
-  if (!readOnly) $('mok').onclick = () => { onSave(); if($('modal-el')) $('modal-el').remove(); };
+  if (!readOnly) $('mok').onclick = () => { onSave(); el.remove(); };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -744,6 +741,25 @@ function helpH() {
 }
 
 
+// ══════════════════════════════════════════════════════════════════════════════
+// LEAK ARCHIVING
+// ══════════════════════════════════════════════════════════════════════════════
+function archiveOldLeaks() {
+  const inc = S.settings.incomes;
+  if (!inc.length) return;
+  const earliestStart = inc.map(p => p.cycleStart).filter(Boolean).sort()[0];
+  if (!earliestStart) return;
+  const toArchive = (S.leaks||[]).filter(l => l.date < earliestStart);
+  if (!toArchive.length) return;
+  if (!Array.isArray(S.leakArchive)) S.leakArchive = [];
+  toArchive.forEach(l => S.leakArchive.push({...l, archivedAt:today()}));
+  S.leaks = S.leaks.filter(l => l.date >= earliestStart);
+  // Trim archive to 12 months
+  const cutoff = addDays(today(), -365);
+  S.leakArchive = S.leakArchive.filter(l => l.date >= cutoff);
+  autoSave();
+}
+
 let PAGE = 'dashboard';
 const PAGES = [
   {id:'dashboard',lbl:'Home',  icon:'⌂'},
@@ -824,6 +840,62 @@ function renderKeepScroll() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// CALCULATE CYCLE — single source of truth for all per-person financials
+// ══════════════════════════════════════════════════════════════════════════════
+function calculateCycle(person, window, rolloverIn, sharedAlloc) {
+  const { start, end } = window;
+  const t = today();
+
+  // Extended end: if next person's cycle starts after a gap, fill it
+  // (This is handled by the caller passing extEnd — we just use start/end here)
+
+  const billItems     = billsInWindow(start, end);
+  const boundaryStart = start;
+  // Bills (excluding one-offs and boundary duplicates)
+  const billTotal     = billItems.filter(b => b.type !== 'oneoff').reduce((s,b) => s+b.amount, 0);
+  const oneoffTotal   = oneoffsInWindow(start, end, null);
+  const leakTotal     = leaksInWindow(start, end);
+  const personalAlloc = +(person.alloc||0);
+
+  const openingPot    = rolloverIn + person.amount;
+  const totalOut      = billTotal + oneoffTotal + leakTotal + personalAlloc + sharedAlloc;
+  const left          = openingPot - totalOut;
+  const over          = left < 0;
+
+  // Bank mode: use actual bank balance minus future bills
+  const bank          = +(person.bank||0);
+  const t2            = t;
+  const remainingBills  = bank > 0
+    ? billItems.filter(b => b.type !== 'oneoff' && b.nd >= t2).reduce((s,b) => s+b.amount, 0)
+    : 0;
+  const remainingOneoffs = bank > 0
+    ? S.oneoffs.filter(o => o.include && !o.paid && o.due >= t2 && o.due >= start && o.due <= end).reduce((s,o) => s+(+(o.actualAmount)||o.amount), 0)
+    : 0;
+  const displayLeft   = bank > 0 ? bank - remainingBills - remainingOneoffs : left;
+  const displayOver   = displayLeft < 0;
+
+  // Projected = income - all bills (no leaks, no allocs)
+  const projected     = person.amount - billTotal + rolloverIn;
+
+  // Bank diff vs projected
+  const bankDiff      = bank > 0 ? bank - projected : null;
+
+  // Rollover to next person (only if positive)
+  const rolloverOut   = displayOver ? 0 : Math.max(0, displayLeft);
+
+  return {
+    person, start, end, t,
+    billItems, billTotal, oneoffTotal, leakTotal,
+    personalAlloc, openingPot, totalOut,
+    left, over,
+    bank, remainingBills, remainingOneoffs,
+    displayLeft, displayOver,
+    projected, bankDiff,
+    rolloverOut
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
 function dashH() {
@@ -875,61 +947,21 @@ function dashH() {
   // Shortfall warning — bills due in next 48hrs
   let shortfallBanner = '';
   if (inc.length > 0) {
-    const activePerson = inc[activeIdx];
-    const aw = windows[activeIdx];
-    const bank = +(activePerson.bank||0);
-
-    // BUG FIX 1: Cap the 48hr window to the active person's cycle end
-    // so we don't show warnings for the next person's bills
-    const in48 = addDays(t, 2) <= aw.end ? addDays(t, 2) : aw.end;
-
-    // Only check bills within the active person's own cycle window
-    const upcomingBills = S.bills.filter(b => {
-      if (!b.include || b.missed) return false;
-      const nd = nextDue(b);
-      return nd && nd >= t && nd <= in48 && nd >= aw.start && nd <= aw.end;
-    });
-    const upcomingOneoffs = S.oneoffs.filter(o =>
-      o.include && !o.paid && o.due && o.due >= t && o.due <= in48 && o.due >= aw.start && o.due <= aw.end
-    );
-    const upcomingAll = [
-      ...upcomingBills.map(b => ({ name:b.name, amount:b.amount, nd:nextDue(b), type:'bill' })),
-      ...upcomingOneoffs.map(o => ({ name:o.name, amount:+(o.actualAmount)||o.amount, nd:o.due, type:'oneoff' }))
-    ];
-
-    if (upcomingAll.length && bank > 0) {
-      // BUG FIX 2: availableBalance = bank minus ALL remaining bills in this cycle from today
-      // This is the total shortfall position, not per-bill
-      const billItems = billsInWindow(aw.start, aw.end);
-      const futureBills = billItems.filter(b => b.type !== 'oneoff' && !b.paid && b.nd >= t).reduce((s,b)=>s+b.amount,0);
-      const futureOneoffs = S.oneoffs.filter(o => o.include && !o.paid && o.due >= t && o.due >= aw.start && o.due <= aw.end).reduce((s,o)=>s+(+(o.actualAmount)||o.amount),0);
-      const availableBalance = bank - futureBills - futureOneoffs;
-
-      // Only warn if we genuinely can't cover everything remaining
-      if (availableBalance < 0) {
-        const totalShort = Math.abs(availableBalance);
-        // BUG FIX 3: Show ONE clear shortfall banner, not one per bill
-        // (per-bill banners were double-counting by subtracting each bill twice)
-        const billNames = upcomingAll.map(i => i.name).join(', ');
-        const nextDue2 = upcomingAll.sort((a,b)=>a.nd.localeCompare(b.nd))[0];
-        const diff = daysBetween(t, nextDue2.nd);
-        shortfallBanner = `<div style="background:var(--amber-d);border:0.5px solid var(--amber);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--amber-t)">
-          ⚠ <strong>Shortfall warning</strong> — bank balance ${fmt(bank)} may be <strong>${fmt(totalShort)} short</strong> to cover remaining bills this cycle<br>
-          <span style="font-size:11px;opacity:.85;margin-top:4px;display:block">Upcoming: ${billNames}</span>
-        </div>`;
-      }
-    } else if (upcomingAll.length && bank === 0) {
-      // No bank entered — use projected calculation
-      const billItems = billsInWindow(aw.start, aw.end);
-      const billTotal = billItems.filter(b => b.type !== 'oneoff').reduce((s,i)=>s+i.amount,0);
-      const leaks = leaksInWindow(aw.start, aw.end);
-      const oneoffs = oneoffsInWindow(aw.start, aw.end, activePerson.name.toUpperCase());
-      const projectedLeft = activePerson.amount - billTotal - oneoffs - leaks - (activePerson.alloc||0) - sharedAlloc;
-      if (projectedLeft < 0) {
-        const billNames = upcomingAll.map(i => i.name).join(', ');
-        shortfallBanner = `<div style="background:var(--amber-d);border:0.5px solid var(--amber);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--amber-t)">
-          ⚠ <strong>Shortfall warning</strong> — projected end of cycle is <strong>${fmt(Math.abs(projectedLeft))} short</strong><br>
-          <span style="font-size:11px;opacity:.85;margin-top:4px;display:block">Upcoming: ${billNames}</span>
+    const _sfP=inc[activeIdx],_sfW=windows[activeIdx],_sfBank=+(_sfP.bank||0);
+    const _sfIn48=addDays(t,2)<=_sfW.end?addDays(t,2):_sfW.end;
+    const _sfBills=S.bills.filter(b=>{if(!b.include||b.missed)return false;const nd=nextDue(b);return nd&&nd>=t&&nd<=_sfIn48&&nd>=_sfW.start&&nd<=_sfW.end;});
+    const _sfO=S.oneoffs.filter(o=>o.include&&!o.paid&&o.due&&o.due>=t&&o.due<=_sfIn48&&o.due>=_sfW.start&&o.due<=_sfW.end);
+    const _sfAll=[..._sfBills.map(b=>({name:b.name,amount:b.amount})),..._sfO.map(o=>({name:o.name,amount:+(o.actualAmount)||o.amount}))];
+    if(_sfAll.length&&_sfBank>0){
+      const _sfItems=billsInWindow(_sfW.start,_sfW.end);
+      const _sfFut=_sfItems.filter(b=>b.type!=='oneoff'&&b.nd>=t).reduce((s,b)=>s+b.amount,0);
+      const _sfFutO=S.oneoffs.filter(o=>o.include&&!o.paid&&o.due>=t&&o.due>=_sfW.start&&o.due<=_sfW.end).reduce((s,o)=>s+(+(o.actualAmount)||o.amount),0);
+      const _sfAvail=_sfBank-_sfFut-_sfFutO;
+      if(_sfAvail<0){
+        const _sfNames=_sfAll.map(i=>i.name).join(', ');
+        shortfallBanner=`<div style="background:var(--amber-d);border:0.5px solid var(--amber);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--amber-t)">
+          ⚠ <strong>Shortfall warning</strong> — bank ${fmt(_sfBank)} may be <strong>${fmt(Math.abs(_sfAvail))} short</strong> to cover remaining bills this cycle<br>
+          <span style="font-size:11px;opacity:.85;margin-top:4px;display:block">Upcoming: ${_sfNames}</span>
         </div>`;
       }
     }
@@ -956,7 +988,7 @@ function dashH() {
     const boundaryIds   = new Set(boundaryBills.map(b => b.id));
     const boundaryAmt   = boundaryBills.reduce((s,b) => s+b.amount, 0);
     const billTotal     = billItems.reduce((s,b) => (boundaryIds.has(b.id) || b.type==='oneoff') ? s : s+b.amount, 0);
-    const oneoffs       = oneoffsInWindow(start, extEnd, null); // ALL one-offs in window, not filtered by person
+    const oneoffs       = oneoffsInWindow(start, extEnd, null);
     const leaks         = leaksInWindow(start, extEnd);
     const personalAlloc = +(person.alloc||0);
     const openingPot    = rollover + person.amount;
@@ -970,7 +1002,7 @@ function dashH() {
     const projected = openingPot - billTotal - oneoffs - personalAlloc - (i===0 ? sharedAlloc : 0);
     const bank      = +(person.bank||0);
     const bankDiff  = bank > 0 ? bank - projected : null;
-    // Bills still to come out = bills due TODAY and after in this window
+    // Bills still to come out = bills due AFTER today in this window
     const t2 = today();
     const remainingBills = bank > 0
       ? billItems.filter(b => !boundaryIds.has(b.id) && b.type!=='oneoff' && b.nd >= t2).reduce((s,b)=>s+b.amount,0)
@@ -1054,36 +1086,17 @@ function dashH() {
         <div class="row-r"><div class="row-amt" style="${isCovered?'color:var(--text3)':'color:var(--text)'}">${fmt(item.amount)}</div>${dayPill(item.nd)}</div>
       </div>`;
     });
-    const billsOnly  = items.filter(i => i.type!=='oneoff' && i.type!=='var' && !coveredBillIds.has(i.id)).reduce((s,i)=>s+i.amount,0);
-    const varsOnly   = items.filter(i => i.type==='var').reduce((s,i)=>s+i.amount,0);
-    const oneoffOnly = items.filter(i => i.type==='oneoff').reduce((s,i)=>s+i.amount,0);
-    const grandTotal = billsOnly + varsOnly + oneoffOnly;
-    const hasExtras  = varsOnly > 0 || oneoffOnly > 0;
-
-    if (hasExtras) {
-      // Show breakdown then grand total
-      h += `<div class="row" style="background:var(--bg3)">
-        <span style="font-size:12px;font-weight:500;color:var(--text3)">Bills</span>
-        <span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(billsOnly)}</span>
-      </div>`;
-      if (varsOnly > 0) h += `<div class="row" style="background:var(--bg3)">
-        <span style="font-size:12px;font-weight:500;color:var(--text3)">Variables</span>
-        <span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(varsOnly)}</span>
-      </div>`;
-      if (oneoffOnly > 0) h += `<div class="row" style="background:var(--bg3)">
-        <span style="font-size:12px;font-weight:500;color:var(--text3)">One-offs</span>
-        <span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(oneoffOnly)}</span>
-      </div>`;
-      h += `<div class="row" style="background:var(--bg4);border-top:1.5px solid var(--border2)">
-        <span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span>
-        <span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(grandTotal)}</span>
-      </div>`;
+    const billsOnly  = items.filter(i=>i.type!=='oneoff'&&i.type!=='var'&&!coveredBillIds.has(i.id)).reduce((s,i)=>s+i.amount,0);
+    const varsOnly   = items.filter(i=>i.type==='var').reduce((s,i)=>s+i.amount,0);
+    const oneoffOnly = items.filter(i=>i.type==='oneoff').reduce((s,i)=>s+i.amount,0);
+    const grandTotal = billsOnly+varsOnly+oneoffOnly;
+    if(varsOnly>0||oneoffOnly>0){
+      h+=`<div class="row" style="background:var(--bg3)"><span style="font-size:12px;color:var(--text3)">Bills</span><span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(billsOnly)}</span></div>`;
+      if(varsOnly>0)h+=`<div class="row" style="background:var(--bg3)"><span style="font-size:12px;color:var(--text3)">Variables</span><span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(varsOnly)}</span></div>`;
+      if(oneoffOnly>0)h+=`<div class="row" style="background:var(--bg3)"><span style="font-size:12px;color:var(--text3)">One-offs</span><span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(oneoffOnly)}</span></div>`;
+      h+=`<div class="row" style="background:var(--bg4);border-top:1.5px solid var(--border2)"><span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span><span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(grandTotal)}</span></div>`;
     } else {
-      // Bills only — one clean total
-      h += `<div class="row" style="background:var(--bg3)">
-        <span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span>
-        <span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(grandTotal)}</span>
-      </div>`;
+      h+=`<div class="row" style="background:var(--bg3)"><span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span><span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(grandTotal)}</span></div>`;
     }
     h += '</div>';
     return h;
@@ -1256,7 +1269,7 @@ function billsH() {
         <div class="bill-row-top">
           <div class="row-l">
             <div class="row-lbl">${v.name}${isPaid?' <span class="pill p-g" style="font-size:9px;margin-left:4px">LOGGED</span>':''}</div>
-            <div class="row-sub">${v.freq} · due ${fmtD(nd)} · budget ${fmt(v.amount)}${isPaid?` · actual ${fmt(v.actualAmount||v.amount)}`:''}${avgActual&&avgActual!==v.amount?` · avg ${fmt(avgActual)}`:''}${lastEntry&&!isPaid?` · last ${fmt(lastEntry.actual)}`:''}</div>
+            <div class="row-sub">${v.freq} · due ${fmtD(nd)} · budget ${fmt(v.amount)}${isPaid?' · actual '+fmt(v.actualAmount||v.amount):''}${lastEntry&&!isPaid?' · last '+fmt(lastEntry.actual):''}</div>
           </div>
           <div class="bill-row-amt">
             <div class="row-amt" style="${isPaid?'color:var(--green-t)':'color:var(--text)'}">${fmt(isPaid?v.actualAmount||v.amount:v.amount)}</div>
@@ -1424,7 +1437,18 @@ function leaksH() {
     </div>
   </div>`).join('')}</div>` : '<div class="card card-p empty">Nothing logged yet</div>'}
   <div style="height:8px"></div>
-  <div class="sec-lbl">Action history</div>
+  <div class="sec-lbl" style="margin-top:14px">Archived leaks</div>
+  <div class="card" style="margin-bottom:0">
+    ${(S.leakArchive&&S.leakArchive.length)?
+      '<div style="padding:10px 14px;font-size:11px;color:var(--text3);border-bottom:0.5px solid var(--border)">Previous cycle leaks — '+S.leakArchive.length+' entries · '+fmt(S.leakArchive.reduce((s,l)=>s+l.amount,0))+' total</div>'+
+      S.leakArchive.slice().reverse().slice(0,20).map(l=>
+        '<div class="row" style="opacity:0.65"><div><div style="font-size:12px;font-weight:600;color:var(--text)">'+l.category+'</div><div style="font-size:11px;color:var(--text3)">'+fmtD(l.date)+(l.note?' · '+l.note:'')+'</div></div><div style="font-family:var(--fm);font-size:13px;font-weight:600;color:var(--red-t)">'+fmt(l.amount)+'</div></div>'
+      ).join('')+
+      (S.leakArchive.length>20?'<div style="padding:8px 14px;font-size:11px;color:var(--text3);text-align:center">Showing 20 most recent</div>':'')
+    :'<div class="empty">Previous cycle leaks appear here automatically</div>'}
+  </div>
+
+  <div class="sec-lbl" style="margin-top:14px">Action history</div>
   ${(S.actionLog||[]).length ? `<div class="card">
     <div class="card-hd"><span class="card-hd-t">Recent actions</span><span style="font-size:11px;color:var(--text3)">${(S.actionLog||[]).length} saved</span></div>
     ${(S.actionLog||[]).map((a,i) => `<div class="row">
@@ -1842,18 +1866,17 @@ function varModal(id){
     <div class="ff" style="margin-bottom:0">
       <label>Due date this cycle</label>
       <input id="m-vdue" type="date" value="${v.due||today()}">
-      <div style="font-size:11px;color:var(--text3);margin-top:3px">Update each cycle. Changing amount or date never affects past history.</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:3px">Update each cycle. History is never affected.</div>
     </div>
-    ${avgActual!==null?`<div style="margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2)">Average actual spend: <strong style="color:var(--text)">${fmt(avgActual)}</strong> over ${hist.length} logs${avgActual<v.amount?' · consider reducing to '+fmt(avgActual):''}</div>`:''}`,
+    ${avgActual!==null?('<div style="margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2)">Average actual: <strong style="color:var(--text)">'+fmt(avgActual)+'</strong> over '+hist.length+' logs</div>'):''}`,
   ()=>{
     const name=$('m-vn').value.trim();if(!name)return;
     const due=$('m-vdue').value||today();
     const amount=+$('m-va').value||0;
     if(id){
       const vx=S.variables.find(x=>x.id===id);
-      vx.name=name; vx.freq=$('m-vf').value; vx.amount=amount; vx.due=due;
-      // If due date changed it's a new cycle — reset paid so log button reappears
-      if(vx.paid && vx.paidDate && due !== vx.paidDate){ vx.paid=false; vx.include=true; vx.actualAmount=null; }
+      vx.name=name;vx.freq=$('m-vf').value;vx.amount=amount;vx.due=due;
+      if(vx.paid&&vx.paidDate&&due!==vx.paidDate){vx.paid=false;vx.include=true;vx.actualAmount=null;}
     } else {
       S.variables.push({id:nid(),name,freq:$('m-vf').value,amount,due,include:true,paid:false,paidDate:null,actualAmount:null,history:[]});
     }
@@ -1880,8 +1903,8 @@ function markVarPaid(id){
     v.history.push({date,budgeted:v.amount,actual,diff});
     v.actualAmount=actual;
     v.paidDate=date;
-    v.paid=true;     // Mark logged — hides ✓ button
-    v.include=false; // Stop deducting from projections this cycle
+    v.paid=true;
+    v.include=false;
     // Log overspend as leak
     if(diff>0){
       S.leaks.push({id:nid(),date,category:`Variable overspend — ${v.name}`,amount:diff,note:`Budgeted ${fmt(v.amount)}, spent ${fmt(actual)}`});
@@ -2012,16 +2035,11 @@ function leakModal(id){
 // ACTIONS
 // ══════════════════════════════════════════════════════════════════════════════
 function togBill(id)    {const b=S.bills.find(x=>x.id===id);     if(b){b.include=!b.include;autoSave();renderKeepScroll();}}
-function togVar(id) {
-  const v=S.variables.find(x=>x.id===id);
-  if(!v)return;
-  v.include=!v.include;
-  autoSave();renderKeepScroll();
-}
-function resetVar(id) {
+function togVar(id){const v=S.variables.find(x=>x.id===id);if(!v)return;v.include=!v.include;autoSave();renderKeepScroll();}
+function resetVar(id){
   const v=S.variables.find(x=>x.id===id);if(!v)return;
-  if(!confirm('Reset '+v.name+' for a new cycle?\nThis clears paid status so you can log again. History is kept.'))return;
-  v.paid=false; v.include=true; v.actualAmount=null;
+  if(!confirm('Reset '+v.name+' for a new cycle?\nHistory is kept.'))return;
+  v.paid=false;v.include=true;v.actualAmount=null;
   if(v.due){
     if(v.freq==='WEEKLY')           v.due=addDays(v.due,7);
     else if(v.freq==='FORTNIGHTLY') v.due=addDays(v.due,14);
@@ -2071,48 +2089,61 @@ function generateStatement() {
 function buildAndPrintStatement(ws, we) {
   const hn = S.settings.householdName || 'Household';
 
-  // Collect bills paid in range
+  // Bills paid in range
   const paidBills = [];
   S.bills.forEach(b => {
     (b.paidHistory||[]).forEach(h => {
       if(h.actual >= ws && h.actual <= we) {
-        paidBills.push({name:b.name, due:h.due, paid:h.actual,
+        paidBills.push({ name:b.name, due:h.due, paid:h.actual,
           budgeted:h.budgeted||b.amount, actual:h.actualAmt||h.budgeted||b.amount,
           diff:(h.actualAmt||h.budgeted||b.amount)-(h.budgeted||b.amount),
-          retry:h.retry||false, linkedLoan:b.linkedLoanId?S.loans.find(l=>l.id===b.linkedLoanId)?.name:null});
+          retry:h.retry||false,
+          linkedLoan:b.linkedLoanId?S.loans.find(l=>l.id===b.linkedLoanId)?.name:null });
       }
     });
   });
   paidBills.sort((a,b)=>a.paid.localeCompare(b.paid));
 
-  // Collect one-offs paid in range
+  // One-offs paid in range
   const paidOneoffs = S.oneoffs.filter(o=>o.paid&&o.paidDate>=ws&&o.paidDate<=we)
     .sort((a,b)=>a.paidDate.localeCompare(b.paidDate));
 
-  // Collect variables logged in range
+  // Variables logged in range
   const loggedVars = [];
   S.variables.forEach(v=>{
     (v.history||[]).forEach(h=>{
-      if(h.date>=ws&&h.date<=we) loggedVars.push({name:v.name,date:h.date,budgeted:h.budgeted,actual:h.actual,diff:h.diff});
+      if(h.date>=ws&&h.date<=we)
+        loggedVars.push({name:v.name,date:h.date,budgeted:h.budgeted,actual:h.actual,diff:h.diff});
     });
   });
   loggedVars.sort((a,b)=>a.date.localeCompare(b.date));
 
-  // Collect leaks in range
-  const leaksInRange = S.leaks.filter(l=>l.date>=ws&&l.date<=we)
+  // Payment plan payments made in range
+  const planPayments = [];
+  S.bills.forEach(b=>{
+    if(!b.paymentPlan) return;
+    (b.paymentPlan.payments||[]).forEach(p=>{
+      if(p.date>=ws&&p.date<=we)
+        planPayments.push({name:b.name+' (arrears)',date:p.date,amount:p.amount,note:p.note||''});
+    });
+  });
+  planPayments.sort((a,b)=>a.date.localeCompare(b.date));
+
+  // Leaks in range — check both active and archived
+  const allLeaks = [...(S.leaks||[]), ...(S.leakArchive||[])];
+  const leaksInRange = allLeaks.filter(l=>l.date>=ws&&l.date<=we)
     .sort((a,b)=>a.date.localeCompare(b.date));
 
-  // Income for each person covering this range
-  const incomeRows = S.settings.incomes.filter(p=>{
-    return p.cycleStart<=we && p.cycleEnd>=ws;
-  });
+  // Income
+  const incomeRows = S.settings.incomes.filter(p=>p.cycleStart<=we&&p.cycleEnd>=ws);
 
   // Totals
   const totalBills   = paidBills.reduce((s,b)=>s+b.actual,0);
   const totalOneoffs = paidOneoffs.reduce((s,o)=>s+(o.actualAmount||o.amount),0);
   const totalVars    = loggedVars.reduce((s,v)=>s+v.actual,0);
+  const totalPlan    = planPayments.reduce((s,p)=>s+p.amount,0);
   const totalLeaks   = leaksInRange.reduce((s,l)=>s+l.amount,0);
-  const totalOut     = totalBills+totalOneoffs+totalVars+totalLeaks;
+  const totalOut     = totalBills+totalOneoffs+totalVars+totalPlan+totalLeaks;
   const totalIncome  = incomeRows.reduce((s,p)=>s+p.amount,0);
 
   const fd = d => new Date(d+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
@@ -2250,9 +2281,12 @@ function buildAndPrintStatement(ws, we) {
   </div>
   <button onclick="window.print()" style="margin-bottom:20px;background:#2E4A8B;color:#fff;border:none;padding:8px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⬇ Print / Save as PDF</button>
 
-  <div class="st-totals">
-    <div class="st-total-item"><div class="lbl">Total income</div><div class="val blue">${fm(totalIncome)}</div></div>
-    <div class="st-total-item"><div class="lbl">Total out</div><div class="val red">${fm(totalOut)}</div></div>
+  <div class="st-totals" style="grid-template-columns:repeat(3,1fr)">
+    <div class="st-total-item"><div class="lbl">Income</div><div class="val blue">${fm(totalIncome)}</div></div>
+    <div class="st-total-item"><div class="lbl">Bills + Variables</div><div class="val" style="color:#64748b">${fm(totalBills+totalVars)}</div></div>
+    <div class="st-total-item"><div class="lbl">One-offs</div><div class="val" style="color:#64748b">${fm(totalOneoffs)}</div></div>
+    <div class="st-total-item"><div class="lbl">Arrears paid</div><div class="val" style="color:#64748b">${fm(totalPlan)}</div></div>
+    <div class="st-total-item"><div class="lbl">Leaks</div><div class="val" style="color:#dc2626">${fm(totalLeaks)}</div></div>
     <div class="st-total-item"><div class="lbl">Net</div><div class="val ${totalIncome-totalOut>=0?'green':'red'}">${fm(totalIncome-totalOut)}</div></div>
   </div>
 
@@ -2279,7 +2313,9 @@ function buildAndPrintStatement(ws, we) {
   ]), [{label:'Date'},{label:'Category'},{label:'Budgeted',right:true},{label:'Actual',right:true},{label:'Diff',right:true}],
   'No variables logged in this range')}
 
-  ${section('Leaks', leaksInRange.map(l=>[fd(l.date), l.category, l.note||'—', fm(l.amount)]),
+  ${planPayments.length?section('Arrears Payments', planPayments.map(p=>[fd(p.date), p.name, p.note||'Extra payment', fm(p.amount)]),
+    [{label:'Date'},{label:'Bill'},{label:'Note'},{label:'Amount',right:true}],''):''}
+  ${section('Leaks / Unplanned', leaksInRange.map(l=>[fd(l.date), l.category, l.note||'—', fm(l.amount)]),
     [{label:'Date'},{label:'Category'},{label:'Note'},{label:'Amount',right:true}],
     'No leaks in this range')}
 
@@ -2291,17 +2327,10 @@ function buildAndPrintStatement(ws, we) {
 function clearAllLeaks() {
   const count = S.leaks.length;
   if(!count) return;
-  modal('Clear all leaks',`
-    <div style="text-align:center;padding:8px 0">
-      <div style="font-size:32px;margin-bottom:8px">⚠</div>
-      <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px">Delete all ${count} leak${count!==1?'s':''}?</div>
-      <div style="font-size:12px;color:var(--text2)">This cannot be undone. All logged leaks will be permanently removed.</div>
-    </div>`,
-  ()=>{
-    saveAction(`All leaks cleared (${count} entries)`, { leaks: JSON.parse(JSON.stringify(S.leaks)) });
-    S.leaks=[];
-    autoSave();renderKeepScroll();
-  });
+  if(!confirm('Clear '+count+' active leak'+(count>1?'s':'')+' from this cycle?\nArchived leaks from previous cycles are kept.'))return;
+  saveAction('Cleared '+count+' leak'+(count>1?'s':''), {leaks:S.leaks});
+  S.leaks=[];
+  autoSave();renderKeepScroll();
 }
 function updExtra(id,v) {const l=S.loans.find(x=>x.id===id);if(l){l.extra=+v;autoSave();renderKeepScroll();}}
 function updBalance(id) {const l=S.loans.find(x=>x.id===id);if(!l)return;const v=prompt('New current balance ($):',l.current);if(v!==null&&!isNaN(+v)){l.current=+v;autoSave();renderKeepScroll();}}
@@ -2465,6 +2494,7 @@ function init(){
   }
 
   document.body.className=S.theme==='light'?'light':'';
+  archiveOldLeaks();
   if(!S.onboarded){showOnboarding();}else{renderNav();render();}
   if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
   // Re-render nav on resize (desktop ↔ mobile switch)
