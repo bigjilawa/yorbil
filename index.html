@@ -881,7 +881,7 @@ function calculateCycle(person, window, rolloverIn, sharedAlloc) {
   const bankDiff      = bank > 0 ? bank - projected : null;
 
   // Rollover to next person (only if positive)
-  const rolloverOut   = displayOver ? 0 : Math.max(0, displayLeft);
+  const rolloverOut   = displayLeft; // carry surplus OR deficit into next cycle
 
   return {
     person, start, end, t,
@@ -1046,7 +1046,7 @@ function dashH() {
       </div>
       <div class="leftover-row" style="border-bottom:2px solid var(--border);border-left:4px solid ${c}">
         <span class="leftover-lbl">Left end of cycle</span>
-        <span class="leftover-amt" style="color:${displayLeftColor}">${fmt(displayLeft)}</span>
+        <span class="leftover-amt" style="color:${displayLeftColor}">${displayOver?'−':''}${fmt(displayLeft)}</span>
       </div>
       <div style="background:var(--bg3);padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;border-left:4px solid ${c}">
         <div>
@@ -1060,11 +1060,11 @@ function dashH() {
           `<div style="font-size:12px;color:var(--text3);margin-top:4px">Enter in Setup →</div>`}
         </div>
       </div>
-      ${!displayOver && i<order.length-1 ? `<div style="padding:8px 14px 10px;font-size:11px;color:var(--text3);background:var(--bg3);border-left:4px solid ${c}">${fmt(displayLeft)} carries into ${inc[order[i+1]].name}'s cycle</div>` : ''}
+      ${i<order.length-1 ? `<div style="padding:8px 14px 10px;font-size:11px;color:var(--text3);background:var(--bg3);border-left:4px solid ${c}">${displayOver?'−'+fmt(Math.abs(displayLeft))+' shortfall carries into':fmt(displayLeft)+' carries into'} ${inc[order[i+1]].name}'s cycle</div>` : ''}
     </div>`;
 
-    // On desktop, wbCards is extracted after forEach (strips rollover banners)
-    rollover = displayOver ? 0 : Math.max(0, displayLeft);
+    // Roll positive surplus OR negative deficit into next cycle
+    rollover = displayLeft;
   });
   // On desktop, strip rollover banners from blocks for the grid (they go above)
   if (isDesktop) {
