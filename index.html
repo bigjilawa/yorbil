@@ -871,23 +871,29 @@ async function joinSync(pin) {
 
     // Pull their state immediately — full replace on join
     const channelId = data.channelId;
+    alert('DEBUG: Got channel ID: ' + channelId.slice(-6) + '\nNow pulling state...');
+
     const pullR = await fetch(SYNC_URL + '/channel/' + channelId);
+    alert('DEBUG: Pull response status: ' + pullR.status);
+
     if (pullR.ok) {
       const remote = await pullR.json();
+      alert('DEBUG: Remote _syncAt: ' + remote._syncAt + '\nRemote has bills: ' + (remote.bills ? remote.bills.length : 'none') + '\nRemote householdName: ' + (remote.settings ? remote.settings.householdName : 'none'));
+
       if (remote && remote._syncAt > 0) {
-        // Full state replace — this IS their phone, take everything
         S = { ...remote, _channelId: channelId, _syncStatus: 'ok' };
         NID = S.nid || 100;
         STORAGE.save(S);
+        alert('DEBUG: State replaced! Bills now: ' + S.bills.length);
       } else {
-        // Remote empty — just store the channel ID, keep local data
+        alert('DEBUG: Remote _syncAt is 0 or empty — relay has no data yet.\nKeeping local data and pushing ours up.');
         S._channelId = channelId;
         S._syncStatus = 'ok';
         STORAGE.save(S);
-        // Push our state so the other phone gets it
         await syncPush();
       }
     } else {
+      alert('DEBUG: Pull failed with status ' + pullR.status);
       S._channelId = channelId;
       S._syncStatus = 'ok';
       STORAGE.save(S);
@@ -896,9 +902,8 @@ async function joinSync(pin) {
     closeModal();
     renderNav();
     render();
-    alert('Synced! Both phones are now linked. The app has been updated with the latest data.');
   } catch(e) {
-    alert('Could not connect. Check your internet connection.');
+    alert('ERROR: ' + e.message);
   }
 }
 
