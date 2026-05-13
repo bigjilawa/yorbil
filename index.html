@@ -845,10 +845,18 @@ async function startSync() {
     const r = await fetch(SYNC_URL + '/channel/new', { method: 'POST' });
     const data = await r.json();
     S._channelId = data.channelId;
-    S._syncAt = 0;
+    S._syncAt = Date.now();
     S._syncStatus = 'ok';
     STORAGE.save(S);
-    await syncPush();
+    // Push current state to relay BEFORE showing PIN
+    // so when partner joins they get our data immediately
+    const payload = JSON.stringify({ ...S, _syncAt: S._syncAt });
+    await fetch(SYNC_URL + '/channel/' + S._channelId, {
+      method: 'PUT',
+      body: payload,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    updateSyncDot();
     showPinModal(data.pin);
   } catch(e) {
     alert('Could not connect to sync server. Check your internet connection.');
@@ -860,21 +868,35 @@ async function joinSync(pin) {
     const r = await fetch(SYNC_URL + '/channel/pair/' + pin.trim());
     if (!r.ok) { alert('PIN not found or expired. Ask your partner to create a new sync.'); return; }
     const data = await r.json();
-    S._channelId = data.channelId;
-    S._syncStatus = 'ok';
-    STORAGE.save(S);
-    // Pull their state immediately
-    const remote = await syncPull();
-    if (remote && remote._syncAt > 0) {
-      const merged = mergeState(remote, S);
-      S = merged;
-      S._channelId = data.channelId;
-      NID = S.nid || 100;
+
+    // Pull their state immediately — full replace on join
+    const channelId = data.channelId;
+    const pullR = await fetch(SYNC_URL + '/channel/' + channelId);
+    if (pullR.ok) {
+      const remote = await pullR.json();
+      if (remote && remote._syncAt > 0) {
+        // Full state replace — this IS their phone, take everything
+        S = { ...remote, _channelId: channelId, _syncStatus: 'ok' };
+        NID = S.nid || 100;
+        STORAGE.save(S);
+      } else {
+        // Remote empty — just store the channel ID, keep local data
+        S._channelId = channelId;
+        S._syncStatus = 'ok';
+        STORAGE.save(S);
+        // Push our state so the other phone gets it
+        await syncPush();
+      }
+    } else {
+      S._channelId = channelId;
+      S._syncStatus = 'ok';
       STORAGE.save(S);
     }
+
     closeModal();
-    renderKeepScroll();
-    alert('Synced! Both phones are now linked.');
+    renderNav();
+    render();
+    alert('Synced! Both phones are now linked. The app has been updated with the latest data.');
   } catch(e) {
     alert('Could not connect. Check your internet connection.');
   }
