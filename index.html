@@ -952,6 +952,17 @@ function render() {
   else if (PAGE==='help')      c.innerHTML = helpH();
   c.scrollTop = 0;
   saveDot = $('sdot');
+  attachNotifBtn();
+}
+
+function attachNotifBtn() {
+  // Attach notification button listener after render — preserves trusted gesture
+  const btn = document.getElementById('enable-notif-btn');
+  if (btn) {
+    btn.addEventListener('click', function() {
+      enableNotifications();
+    });
+  }
 }
 
 function filterBillList() {
@@ -974,6 +985,7 @@ function renderKeepScroll() {
   else if (PAGE==='settings')  c.innerHTML = settingsH();
   c.scrollTop = pos;
   saveDot = $('sdot');
+  attachNotifBtn();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1738,7 +1750,7 @@ function settingsH() {
       <div style="font-size:12px;color:var(--text2);line-height:1.6">Go to browser settings → Site settings → Notifications → find Yorbil → Allow.</div>`
     :`
       <div style="font-size:13px;color:var(--text);margin-bottom:10px">Get reminded before bills are due — even when the app is closed.</div>
-      <button class="btn" onclick="enableNotifications()">Enable bill reminders</button>`}
+      <button class="btn" id="enable-notif-btn">Enable bill reminders</button>`}
   </div>
 
   <div class="sec-lbl" style="color:var(--red-t)">Danger zone</div>
