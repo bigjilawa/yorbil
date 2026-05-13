@@ -395,6 +395,9 @@ const STORAGE = (function() {
     // Migrate actionLog
     if (!Array.isArray(parsed.actionLog)) parsed.actionLog = [];
     if (!Array.isArray(parsed.leakArchive)) parsed.leakArchive = [];
+    if (!parsed._channelId)   parsed._channelId  = null;
+    if (!parsed._syncAt)      parsed._syncAt     = 0;
+    if (!parsed._syncStatus)  parsed._syncStatus = 'off';
     // Migrate bill paymentPlan field
     if (Array.isArray(parsed.bills)) {
       parsed.bills = parsed.bills.map(b =>
@@ -458,14 +461,15 @@ const nid = () => NID++;
 function blankState() {
   return { version:2, onboarded:false, theme:'dark', nid:100, lastSaved:null,
     settings:{ householdName:'', incomes:[], sharedAllocs:[] },
-    bills:[], variables:[], oneoffs:[], loans:[], goals:[], leaks:[], leakArchive:[], actionLog:[] };
+    bills:[], variables:[], oneoffs:[], loans:[], goals:[], leaks:[], leakArchive:[], actionLog:[],
+    _channelId:null, _syncAt:0, _syncStatus:'off' };
 }
 
 let saveDot, saveTimer;
 function autoSave() {
   if (saveDot) saveDot.style.background='var(--amber)';
   clearTimeout(saveTimer); S.nid = NID;
-  saveTimer = setTimeout(() => { STORAGE.save(S); if(saveDot) saveDot.style.background='var(--green)'; }, 600);
+  saveTimer = setTimeout(() => { STORAGE.save(S); if(saveDot) saveDot.style.background='var(--green)'; syncPush(); }, 600);
 }
 
 // ── Action history ────────────────────────────────────────────────────────────
@@ -669,6 +673,7 @@ function logoHTML() {
       <div style="font-size:17px;font-weight:700;letter-spacing:3px;color:var(--text);line-height:1">YORBIL</div>
       <div style="font-size:8px;font-weight:600;letter-spacing:2px;color:var(--text2);text-transform:uppercase;margin-top:1px">Household Finance</div>
     </div>
+    <div id="sync-dot" title="Not synced" style="width:7px;height:7px;border-radius:50%;background:var(--text3);margin-left:6px;flex-shrink:0"></div>
   </div>`;
 }
 
@@ -772,6 +777,163 @@ function archiveOldLeaks() {
   autoSave();
 }
 
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SYNC — Cloudflare Worker relay
+// ══════════════════════════════════════════════════════════════════════════════
+const SYNC_URL = 'https://yorbil-sync.bigjilawa.workers.dev';
+
+async function syncPush() {
+  if (!S || !S._channelId) return;
+  try {
+    const payload = JSON.stringify({ ...S, _syncAt: Date.now() });
+    const r = await fetch(SYNC_URL + '/channel/' + S._channelId, {
+      method: 'PUT',
+      body: payload,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (r.ok) {
+      S._syncAt = Date.now();
+      S._syncStatus = 'ok';
+    } else {
+      S._syncStatus = 'error';
+    }
+  } catch(e) {
+    S._syncStatus = 'error'; // silent fail — offline
+  }
+  updateSyncDot();
+}
+
+async function syncPull() {
+  if (!S || !S._channelId) return null;
+  try {
+    const r = await fetch(SYNC_URL + '/channel/' + S._channelId);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+function mergeState(remote, local) {
+  if (!remote || !remote._syncAt) return local;
+  if (!local)  return remote;
+  if (remote._syncAt === local._syncAt) return local; // same — no-op
+  if (remote._syncAt > (local._syncAt || 0)) {
+    // Remote is newer — use it but keep local channel/sync fields
+    return { ...remote, _channelId: local._channelId, _syncStatus: 'ok' };
+  }
+  return local; // local newer — will push on next save
+}
+
+async function syncOnLoad() {
+  const remote = await syncPull();
+  if (!remote) return;
+  const merged = mergeState(remote, S);
+  if (merged !== S) {
+    S = merged;
+    NID = S.nid || 100;
+    STORAGE.save(S);
+    render();
+  }
+  S._syncStatus = 'ok';
+  updateSyncDot();
+}
+
+async function startSync() {
+  // Create a new channel and show the PIN
+  try {
+    const r = await fetch(SYNC_URL + '/channel/new', { method: 'POST' });
+    const data = await r.json();
+    S._channelId = data.channelId;
+    S._syncAt = 0;
+    S._syncStatus = 'ok';
+    STORAGE.save(S);
+    await syncPush();
+    showPinModal(data.pin);
+  } catch(e) {
+    alert('Could not connect to sync server. Check your internet connection.');
+  }
+}
+
+async function joinSync(pin) {
+  try {
+    const r = await fetch(SYNC_URL + '/channel/pair/' + pin.trim());
+    if (!r.ok) { alert('PIN not found or expired. Ask your partner to create a new sync.'); return; }
+    const data = await r.json();
+    S._channelId = data.channelId;
+    S._syncStatus = 'ok';
+    STORAGE.save(S);
+    // Pull their state immediately
+    const remote = await syncPull();
+    if (remote && remote._syncAt > 0) {
+      const merged = mergeState(remote, S);
+      S = merged;
+      S._channelId = data.channelId;
+      NID = S.nid || 100;
+      STORAGE.save(S);
+    }
+    closeModal();
+    renderKeepScroll();
+    alert('Synced! Both phones are now linked.');
+  } catch(e) {
+    alert('Could not connect. Check your internet connection.');
+  }
+}
+
+function unpairSync() {
+  if (!confirm('Unpair this phone from sync?\nYour data stays on this phone — it just stops syncing.')) return;
+  S._channelId = null;
+  S._syncAt = 0;
+  S._syncStatus = 'off';
+  autoSave();
+  renderKeepScroll();
+}
+
+function showPinModal(pin) {
+  modal('Sync setup', `
+    <div style="text-align:center;padding:8px 0">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Your sync PIN — share this with your partner</div>
+      <div style="font-size:48px;font-weight:700;font-family:var(--fm);letter-spacing:8px;color:var(--blue-t);margin-bottom:16px">${pin}</div>
+      <div style="font-size:11px;color:var(--text3)">Valid for 10 minutes. Ask them to go to Setup → Sync → Join and enter this PIN.</div>
+    </div>`, null, true);
+}
+
+function openJoinModal() {
+  modal('Join sync', `
+    <div class="ff" style="margin-bottom:0">
+      <label>Enter the 6-digit PIN from your partner's phone</label>
+      <input id="m-pin" type="number" placeholder="123456" style="font-size:24px;text-align:center;letter-spacing:4px" maxlength="6">
+    </div>`,
+  () => {
+    const pin = $('m-pin') ? $('m-pin').value.trim() : '';
+    if (!pin || pin.length !== 6) { alert('Enter the 6-digit PIN.'); return; }
+    joinSync(pin);
+  });
+}
+
+function updateSyncDot() {
+  const dot = $('sync-dot');
+  if (!dot) return;
+  const status = S ? S._syncStatus : 'off';
+  const colors = { ok:'var(--green-t)', error:'var(--red-t)', pending:'var(--amber)', off:'var(--text3)' };
+  dot.style.background = colors[status] || colors.off;
+  dot.title = status === 'ok' ? 'Synced' : status === 'error' ? 'Sync error' : status === 'pending' ? 'Syncing...' : 'Not synced';
+}
+
+function closeModal() {
+  const el = $('modal-el');
+  if (el) el.remove();
+}
+
+function fmtAgo(ts) {
+  if (!ts) return 'never';
+  const mins = Math.round((Date.now() - ts) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.round(hrs / 24) + 'd ago';
+}
 
 
 let PAGE = 'dashboard';
@@ -1591,6 +1753,29 @@ function settingsH() {
       <button class="btn sm primary" onclick="STORAGE.exportJSON(S)">Export backup</button>
       <button class="btn sm" onclick="doImport()">Import backup</button>
     </div>
+  </div>
+
+  <div class="sec-lbl" style="margin-top:14px">Sync</div>
+  <div class="card card-p">
+    ${S._channelId ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--green-t)">● Sync active</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Last synced: ${fmtAgo(S._syncAt)}</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn sm" onclick="syncOnLoad().then(()=>renderKeepScroll())">↺ Sync now</button>
+          <button class="btn sm" style="color:var(--red-t);border-color:var(--red-d)" onclick="unpairSync()">Unpair</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3)">Channel: ••••${S._channelId.slice(-4)}</div>
+    ` : `
+      <div style="font-size:13px;color:var(--text);margin-bottom:12px">Keep both phones in sync automatically — bills, payments, and balances update on all devices.</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="startSync()">Start sync</button>
+        <button class="btn" style="background:var(--bg3)" onclick="openJoinModal()">Join with PIN</button>
+      </div>
+    `}
   </div>
 
   <div class="sec-lbl" style="color:var(--red-t)">Danger zone</div>
@@ -2511,7 +2696,7 @@ function init(){
 
   document.body.className=S.theme==='light'?'light':'';
   archiveOldLeaks();
-  if(!S.onboarded){showOnboarding();}else{renderNav();render();}
+  if(!S.onboarded){showOnboarding();}else{renderNav();render();syncOnLoad();}
   if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
   // Re-render nav on resize (desktop ↔ mobile switch)
   window.addEventListener('resize', () => { renderNav(); });
