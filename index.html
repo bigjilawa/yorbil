@@ -765,6 +765,33 @@ function archiveOldLeaks() {
 // PUSH NOTIFICATIONS — Patch 2.8
 // ══════════════════════════════════════════════════════════════════════════════
 
+function enableNotifications() {
+  // Must be called synchronously from user gesture — no .then() wrappers
+  if (!('Notification' in window)) {
+    alert('Push notifications are not supported on this device or browser.');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    alert('Notifications are blocked. Go to your browser settings → Site settings → find Yorbil → set Notifications to Allow.');
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    scheduleNotifications();
+    renderKeepScroll();
+    return;
+  }
+  // Request directly — must be synchronous call from user gesture
+  Notification.requestPermission().then(result => {
+    if (result === 'granted') {
+      scheduleNotifications();
+      testNotification();
+      renderKeepScroll();
+    } else {
+      alert('Notifications were not allowed. You can enable them later in Setup.');
+    }
+  });
+}
+
 async function requestNotifPermission() {
   if (!('Notification' in window)) {
     alert('Push notifications are not supported on this device/browser.');
@@ -1711,7 +1738,7 @@ function settingsH() {
       <div style="font-size:12px;color:var(--text2);line-height:1.6">Go to browser settings → Site settings → Notifications → find Yorbil → Allow.</div>`
     :`
       <div style="font-size:13px;color:var(--text);margin-bottom:10px">Get reminded before bills are due — even when the app is closed.</div>
-      <button class="btn" onclick="requestNotifPermission().then(ok=>{if(ok){scheduleNotifications();renderKeepScroll();}})">Enable bill reminders</button>`}
+      <button class="btn" onclick="enableNotifications()">Enable bill reminders</button>`}
   </div>
 
   <div class="sec-lbl" style="color:var(--red-t)">Danger zone</div>
