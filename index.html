@@ -79,6 +79,7 @@ input:focus,select:focus{border-color:var(--blue)}
 .leftover-row{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--bg3)}
 .leftover-lbl{font-size:13px;font-weight:600;color:var(--text2)}
 .leftover-amt{font-size:24px;font-weight:700;font-family:var(--fm)}
+body.light .leftover-amt{color:inherit}
 .rollover{background:var(--teal-d);border:0.5px solid var(--teal);border-radius:10px;padding:8px 14px;margin:4px 14px;font-size:12px;color:var(--teal-t);font-weight:600}
 .overspend{background:var(--red-d);border-left:4px solid var(--red);padding:8px 14px;font-size:12px;color:var(--red-t);font-weight:600;margin:0}
 .lc{background:var(--bg2);border-radius:14px;border:0.5px solid var(--border);margin:6px 14px;padding:14px}
@@ -182,6 +183,12 @@ body.light #dt-topbar{background:#fff;border-bottom:1.5px solid var(--border2)}
 body.light .dt-tab{color:var(--text2)}
 body.light .dt-tab:hover{background:#f0f3fa;color:var(--text)}
 body.light .dt-tab.active{background:#dbeafe;color:var(--blue)}
+body.light .pill{background:#e2e8f0;color:#334155}
+body.light .pill.p-g{background:#dcfce7;color:#166534}
+body.light .pill.p-r{background:#fee2e2;color:#991b1b}
+body.light .pill.p-b{background:#dbeafe;color:#1d4ed8}
+body.light .pill.p-a{background:#fef3c7;color:#92400e}
+body.light #modal-el .card{background:#ffffff;border:0.5px solid #e2e8f0}
 
 /* ══ DESKTOP ══════════════════════════════════════════════════════════════ */
 @media (min-width: 768px) {
@@ -239,6 +246,9 @@ body.light .dt-tab.active{background:#dbeafe;color:var(--blue)}
   }
   .dt-income-grid > .wb                         { margin: 0 !important; width: 100% !important; }
   .dt-income-grid > .rollover                   { grid-column: 1 / -1 !important; margin: 0 !important; }
+  /* Loans + Goals side by side on desktop */
+  .dt-lower-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:0 24px 16px; max-width:1200px; margin:0 auto; }
+  .dt-lower-grid > * { margin:0 !important; }
   .dt-income-grid > div:not(.wb):not(.rollover) { grid-column: 1 / -1 !important; }
   /* Single income — one column centred */
   .dt-income-grid.single { grid-template-columns: minmax(0, 560px) !important; justify-content: center !important; }
@@ -385,7 +395,6 @@ const STORAGE = (function() {
     // Migrate actionLog
     if (!Array.isArray(parsed.actionLog)) parsed.actionLog = [];
     if (!Array.isArray(parsed.leakArchive)) parsed.leakArchive = [];
-    if (!parsed.settings.notifHours) parsed.settings.notifHours = 24;
     // Migrate bill paymentPlan field
     if (Array.isArray(parsed.bills)) {
       parsed.bills = parsed.bills.map(b =>
@@ -448,7 +457,7 @@ const nid = () => NID++;
 
 function blankState() {
   return { version:2, onboarded:false, theme:'dark', nid:100, lastSaved:null,
-    settings:{ householdName:'', incomes:[], sharedAllocs:[], notifHours:24 },
+    settings:{ householdName:'', incomes:[], sharedAllocs:[] },
     bills:[], variables:[], oneoffs:[], loans:[], goals:[], leaks:[], leakArchive:[], actionLog:[] };
 }
 
@@ -706,6 +715,8 @@ function helpH() {
     + row('↺ Unfreeze','Waiting — nothing came out yet','The payment failed but nothing has been debited. Use this while waiting for a bank retry or redraw. Bill stays on the same due date.','var(--teal-d)')
     + row('✓ Retry','Money eventually came out','Bank retried or you paid it manually. Enter the full amount charged including any dishonour fee. Bill resets to next due date.','var(--green-d)')
     + row('⚖ Plan','Set up a payment arrangement','Cannot pay in one hit. Tracks the arrears separately. Bill immediately resets to its next due date. Each week when you pay extra above the normal amount, the arrears balance reduces automatically.','var(--blue-d)')
+    + row('✓ Log spend','Log a variable expense','Tap when you spend your variable budget — Tolls, Shopping etc. Enter actual amount. If over budget the extra logs as a leak. Variable shows LOGGED and stops deducting from projections.','var(--green-d)')
+    + row('↺ New cycle','Reset variable for next week','After logging, resets the variable so you can log again next cycle. Due date advances automatically. All history is kept.','var(--teal-d)')
     + row('$ Arrears','View active payment plan','Shows debt total, amount paid so far, amount still owing, and history of extra payments. Tap to clear the plan if debt is forgiven or settled outside the app.','var(--red-d)')
     + row('☆','Pin to top','Keeps this bill pinned at the top of the list.')
     + row('✎','Edit details','Change name, amount, frequency, or due date. Link to a loan here.')
@@ -734,8 +745,8 @@ function helpH() {
   <div class="sec-lbl" style="margin-top:12px">Warning banners</div>
   ${sec('🔔','What the coloured banners mean',
     row('🔴','Missed bill — action needed','A bill is currently frozen. Go to Bills and choose Retry, Unfreeze, or Plan.','var(--red-d)')
-    + row('🟡','Shortfall warning','A bill or one-off is due in the next 48 hours and your available balance may not cover it.','var(--amber-d)')
-    + row('🔴','Payment plan in progress','At least one bill has an active payment arrangement. Shows total arrears still owing.',  'var(--red-d)',true)
+    + row('🟡','Shortfall warning','Your bank balance minus all remaining bills in the cycle is negative. Shows the exact amount short.')
+    + row('-$X.XX','Negative Left end of cycle','When Left end shows negative in red, your bank cannot cover everything due. The shortfall rolls into the next persons cycle reducing their left figure by the same amount.',undefined,true)
   )}
 
   <div style="height:16px"></div>`;
@@ -761,136 +772,6 @@ function archiveOldLeaks() {
   autoSave();
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PUSH NOTIFICATIONS — Patch 2.8
-// ══════════════════════════════════════════════════════════════════════════════
-
-function enableNotifications() {
-  // Must be called synchronously from user gesture — no .then() wrappers
-  if (!('Notification' in window)) {
-    alert('Push notifications are not supported on this device or browser.');
-    return;
-  }
-  if (Notification.permission === 'denied') {
-    alert('Notifications are blocked. Go to your browser settings → Site settings → find Yorbil → set Notifications to Allow.');
-    return;
-  }
-  if (Notification.permission === 'granted') {
-    scheduleNotifications();
-    renderKeepScroll();
-    return;
-  }
-  // Request directly — must be synchronous call from user gesture
-  Notification.requestPermission().then(result => {
-    if (result === 'granted') {
-      scheduleNotifications();
-      testNotification();
-      renderKeepScroll();
-    } else {
-      alert('Notifications were not allowed. You can enable them later in Setup.');
-    }
-  });
-}
-
-async function requestNotifPermission() {
-  if (!('Notification' in window)) {
-    alert('Push notifications are not supported on this device/browser.');
-    return false;
-  }
-  if (Notification.permission === 'granted') return true;
-  if (Notification.permission === 'denied') {
-    alert('Notifications are blocked. Enable them in your browser settings for this site.');
-    return false;
-  }
-  const result = await Notification.requestPermission();
-  if (result === 'granted') {
-    autoSave();
-    renderKeepScroll();
-    return true;
-  }
-  return false;
-}
-
-function getNotifPermission() {
-  if (!('Notification' in window)) return 'unsupported';
-  return Notification.permission; // 'default', 'granted', 'denied'
-}
-
-// Schedule notifications for upcoming bills
-// Called on init and whenever bills change
-function scheduleNotifications() {
-  if (!('Notification' in window)) return;
-  if (Notification.permission !== 'granted') return;
-  if (!S.settings || !S.settings.incomes) return;
-
-  const hoursAhead = +(S.settings.notifHours || 24);
-  const t = today();
-  const now = Date.now();
-  const windowMs = hoursAhead * 60 * 60 * 1000;
-
-  // Collect all upcoming bills across all cycles
-  const upcoming = [];
-
-  S.settings.incomes.forEach(person => {
-    if (!person.cycleStart || !person.cycleEnd) return;
-    const billItems = billsInWindow(person.cycleStart, person.cycleEnd);
-    billItems.forEach(b => {
-      if (!b.nd || b.nd < t) return;
-      const dueMs = new Date(b.nd + 'T09:00:00').getTime();
-      const notifMs = dueMs - windowMs;
-      if (notifMs > now && notifMs < now + (7 * 24 * 60 * 60 * 1000)) {
-        upcoming.push({ name: b.name, amount: b.amount, nd: b.nd, notifAt: notifMs, type: b.type });
-      }
-    });
-
-    // One-offs
-    S.oneoffs.filter(o => o.include && !o.paid && o.due >= t && o.due >= person.cycleStart && o.due <= person.cycleEnd).forEach(o => {
-      const dueMs = new Date(o.due + 'T09:00:00').getTime();
-      const notifMs = dueMs - windowMs;
-      if (notifMs > now && notifMs < now + (7 * 24 * 60 * 60 * 1000)) {
-        upcoming.push({ name: o.name, amount: o.actualAmount || o.amount, nd: o.due, notifAt: notifMs, type: 'oneoff' });
-      }
-    });
-  });
-
-  // Store scheduled notifications in localStorage for SW to pick up
-  const scheduled = upcoming.map(u => ({
-    id: u.nd + '-' + u.name.replace(/\s+/g,'-'),
-    title: '📅 ' + u.name + ' due ' + fmtD(u.nd),
-    body: fmt(u.amount) + ' coming out' + (u.type === 'oneoff' ? ' (one-off)' : u.type === 'var' ? ' (variable)' : ''),
-    notifAt: u.notifAt
-  }));
-
-  try {
-    localStorage.setItem('yorbil-notif-schedule', JSON.stringify(scheduled));
-  } catch(e) {}
-
-  // Fire immediate notifications for anything due in the next hoursAhead that we missed scheduling
-  upcoming.filter(u => u.notifAt <= now).forEach(u => {
-    const diff = Math.round((new Date(u.nd + 'T00:00:00') - new Date()) / (1000 * 60 * 60 * 24));
-    const when = diff === 0 ? 'today' : diff === 1 ? 'tomorrow' : 'in ' + diff + ' days';
-    try {
-      new Notification('📅 ' + u.name + ' due ' + when, {
-        body: fmt(u.amount) + ' coming out' + (u.type === 'oneoff' ? ' (one-off)' : ''),
-        icon: './icon-192.png',
-        badge: './icon-192.png',
-        tag: u.nd + '-' + u.name,
-      });
-    } catch(e) {}
-  });
-}
-
-function testNotification() {
-  if (Notification.permission !== 'granted') return;
-  try {
-    new Notification('🔔 Yorbil notifications are on', {
-      body: "You'll be reminded " + (S.settings.notifHours || 24) + " hours before bills are due.",
-      icon: './icon-192.png',
-      tag: 'yorbil-test',
-    });
-  } catch(e) {}
-}
-
 
 
 let PAGE = 'dashboard';
@@ -906,10 +787,7 @@ const PAGES = [
 
 function renderNav() {
   const isDesktop = window.innerWidth >= 768;
-  // Notification nudge — show once if not set up
-  const notifNudge = (typeof Notification !== 'undefined' && Notification.permission === 'default')
-    ? `<div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--text2);display:flex;align-items:center;justify-content:space-between"><span>🔔 Enable bill reminders in Setup</span><button class="btn sm" onclick="navigate('settings')">Setup →</button></div>`
-    : '';
+
 
   if (isDesktop) {
     // Desktop: top fixed bar
@@ -952,17 +830,6 @@ function render() {
   else if (PAGE==='help')      c.innerHTML = helpH();
   c.scrollTop = 0;
   saveDot = $('sdot');
-  attachNotifBtn();
-}
-
-function attachNotifBtn() {
-  // Attach notification button listener after render — preserves trusted gesture
-  const btn = document.getElementById('enable-notif-btn');
-  if (btn) {
-    btn.addEventListener('click', function() {
-      enableNotifications();
-    });
-  }
 }
 
 function filterBillList() {
@@ -985,7 +852,6 @@ function renderKeepScroll() {
   else if (PAGE==='settings')  c.innerHTML = settingsH();
   c.scrollTop = pos;
   saveDot = $('sdot');
-  attachNotifBtn();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1049,10 +915,7 @@ function calculateCycle(person, window, rolloverIn, sharedAlloc) {
 // ══════════════════════════════════════════════════════════════════════════════
 function dashH() {
   const isDesktop = window.innerWidth >= 768;
-  // Notification nudge — show once if not set up
-  const notifNudge = (typeof Notification !== 'undefined' && Notification.permission === 'default')
-    ? `<div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--text2);display:flex;align-items:center;justify-content:space-between"><span>🔔 Enable bill reminders in Setup</span><button class="btn sm" onclick="navigate('settings')">Setup →</button></div>`
-    : '';
+
   const inc = S.settings.incomes;
   const sharedAlloc = S.settings.sharedAllocs.reduce((s,a)=>s+a.amount, 0);
   const t = today();
@@ -1269,7 +1132,7 @@ const blockWrapOpen  = isDesktop ? `<div class="dt-income-grid${order.length===1
     </div>
   </div>
   ${inc.length===0 ? '<div class="alert-info" style="margin-top:10px">Welcome! Go to <strong>Setup</strong> to add your household details.</div>' : ''}
-  <div class="${isDesktop?'dt-banner':''} ">${notifNudge}${arrearsBanner}${missedBanner}${shortfallBanner}</div>
+  <div class="${isDesktop?'dt-banner':''} ">${arrearsBanner}${missedBanner}${shortfallBanner}</div>
   ${isDesktop ? '<div class="dt-rollover-bar">'+rollovers+'</div>' : ''}
   ${blockWrapOpen}${isDesktop ? wbCards : blocks}${blockWrapClose}
   ${isDesktop?'<div class="dt-due-grid">':''}
@@ -1728,29 +1591,6 @@ function settingsH() {
       <button class="btn sm primary" onclick="STORAGE.exportJSON(S)">Export backup</button>
       <button class="btn sm" onclick="doImport()">Import backup</button>
     </div>
-  </div>
-
-  <div class="sec-lbl" style="margin-top:14px">Notifications</div>
-  <div class="card card-p">
-    ${getNotifPermission()==='granted'?`
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--green-t)">✓ Notifications enabled</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">Bill reminders are active</div>
-        </div>
-        <button class="btn sm" onclick="testNotification()">Test</button>
-      </div>
-      <div class="ff" style="margin-bottom:0"><label>Remind me this many hours before a bill is due</label>
-        <select id="notif-hours" onchange="S.settings.notifHours=+this.value;scheduleNotifications();autoSave();">
-          ${[4,8,12,24,48].map(h=>'<option value="'+h+'"'+(+(S.settings.notifHours||24)===h?' selected':'')+'>'+h+' hours before</option>').join('')}
-        </select>
-      </div>`
-    :getNotifPermission()==='denied'?`
-      <div style="font-size:13px;color:var(--red-t);font-weight:600;margin-bottom:6px">✗ Notifications blocked</div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.6">Go to browser settings → Site settings → Notifications → find Yorbil → Allow.</div>`
-    :`
-      <div style="font-size:13px;color:var(--text);margin-bottom:10px">Get reminded before bills are due — even when the app is closed.</div>
-      <button class="btn" id="enable-notif-btn">Enable bill reminders</button>`}
   </div>
 
   <div class="sec-lbl" style="color:var(--red-t)">Danger zone</div>
@@ -2671,14 +2511,8 @@ function init(){
 
   document.body.className=S.theme==='light'?'light':'';
   archiveOldLeaks();
-  scheduleNotifications();
   if(!S.onboarded){showOnboarding();}else{renderNav();render();}
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('./sw.js').then(reg => {
-      // Pass notification schedule to SW cache so it can fire when app is closed
-      if(reg.active) reg.active.postMessage('checkNotifs');
-    }).catch(()=>{});
-  }
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
   // Re-render nav on resize (desktop ↔ mobile switch)
   window.addEventListener('resize', () => { renderNav(); });
 }
