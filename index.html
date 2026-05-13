@@ -385,6 +385,7 @@ const STORAGE = (function() {
     // Migrate actionLog
     if (!Array.isArray(parsed.actionLog)) parsed.actionLog = [];
     if (!Array.isArray(parsed.leakArchive)) parsed.leakArchive = [];
+    if (!parsed.settings.notifHours) parsed.settings.notifHours = 24;
     // Migrate bill paymentPlan field
     if (Array.isArray(parsed.bills)) {
       parsed.bills = parsed.bills.map(b =>
@@ -447,7 +448,7 @@ const nid = () => NID++;
 
 function blankState() {
   return { version:2, onboarded:false, theme:'dark', nid:100, lastSaved:null,
-    settings:{ householdName:'', incomes:[], sharedAllocs:[] },
+    settings:{ householdName:'', incomes:[], sharedAllocs:[], notifHours:24 },
     bills:[], variables:[], oneoffs:[], loans:[], goals:[], leaks:[], leakArchive:[], actionLog:[] };
 }
 
@@ -760,6 +761,111 @@ function archiveOldLeaks() {
   autoSave();
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// PUSH NOTIFICATIONS — Patch 2.8
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function requestNotifPermission() {
+  if (!('Notification' in window)) {
+    alert('Push notifications are not supported on this device/browser.');
+    return false;
+  }
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') {
+    alert('Notifications are blocked. Enable them in your browser settings for this site.');
+    return false;
+  }
+  const result = await Notification.requestPermission();
+  if (result === 'granted') {
+    autoSave();
+    renderKeepScroll();
+    return true;
+  }
+  return false;
+}
+
+function getNotifPermission() {
+  if (!('Notification' in window)) return 'unsupported';
+  return Notification.permission; // 'default', 'granted', 'denied'
+}
+
+// Schedule notifications for upcoming bills
+// Called on init and whenever bills change
+function scheduleNotifications() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  if (!S.settings || !S.settings.incomes) return;
+
+  const hoursAhead = +(S.settings.notifHours || 24);
+  const t = today();
+  const now = Date.now();
+  const windowMs = hoursAhead * 60 * 60 * 1000;
+
+  // Collect all upcoming bills across all cycles
+  const upcoming = [];
+
+  S.settings.incomes.forEach(person => {
+    if (!person.cycleStart || !person.cycleEnd) return;
+    const billItems = billsInWindow(person.cycleStart, person.cycleEnd);
+    billItems.forEach(b => {
+      if (!b.nd || b.nd < t) return;
+      const dueMs = new Date(b.nd + 'T09:00:00').getTime();
+      const notifMs = dueMs - windowMs;
+      if (notifMs > now && notifMs < now + (7 * 24 * 60 * 60 * 1000)) {
+        upcoming.push({ name: b.name, amount: b.amount, nd: b.nd, notifAt: notifMs, type: b.type });
+      }
+    });
+
+    // One-offs
+    S.oneoffs.filter(o => o.include && !o.paid && o.due >= t && o.due >= person.cycleStart && o.due <= person.cycleEnd).forEach(o => {
+      const dueMs = new Date(o.due + 'T09:00:00').getTime();
+      const notifMs = dueMs - windowMs;
+      if (notifMs > now && notifMs < now + (7 * 24 * 60 * 60 * 1000)) {
+        upcoming.push({ name: o.name, amount: o.actualAmount || o.amount, nd: o.due, notifAt: notifMs, type: 'oneoff' });
+      }
+    });
+  });
+
+  // Store scheduled notifications in localStorage for SW to pick up
+  const scheduled = upcoming.map(u => ({
+    id: u.nd + '-' + u.name.replace(/\s+/g,'-'),
+    title: '📅 ' + u.name + ' due ' + fmtD(u.nd),
+    body: fmt(u.amount) + ' coming out' + (u.type === 'oneoff' ? ' (one-off)' : u.type === 'var' ? ' (variable)' : ''),
+    notifAt: u.notifAt
+  }));
+
+  try {
+    localStorage.setItem('yorbil-notif-schedule', JSON.stringify(scheduled));
+  } catch(e) {}
+
+  // Fire immediate notifications for anything due in the next hoursAhead that we missed scheduling
+  upcoming.filter(u => u.notifAt <= now).forEach(u => {
+    const diff = Math.round((new Date(u.nd + 'T00:00:00') - new Date()) / (1000 * 60 * 60 * 24));
+    const when = diff === 0 ? 'today' : diff === 1 ? 'tomorrow' : 'in ' + diff + ' days';
+    try {
+      new Notification('📅 ' + u.name + ' due ' + when, {
+        body: fmt(u.amount) + ' coming out' + (u.type === 'oneoff' ? ' (one-off)' : ''),
+        icon: './icon-192.png',
+        badge: './icon-192.png',
+        tag: u.nd + '-' + u.name,
+      });
+    } catch(e) {}
+  });
+}
+
+function testNotification() {
+  if (Notification.permission !== 'granted') return;
+  try {
+    new Notification('🔔 Yorbil notifications are on', {
+      body: "You'll be reminded " + (S.settings.notifHours || 24) + " hours before bills are due.",
+      icon: './icon-192.png',
+      tag: 'yorbil-test',
+    });
+  } catch(e) {}
+}
+
+
+
 let PAGE = 'dashboard';
 const PAGES = [
   {id:'dashboard',lbl:'Home',  icon:'⌂'},
@@ -773,6 +879,10 @@ const PAGES = [
 
 function renderNav() {
   const isDesktop = window.innerWidth >= 768;
+  // Notification nudge — show once if not set up
+  const notifNudge = (typeof Notification !== 'undefined' && Notification.permission === 'default')
+    ? `<div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--text2);display:flex;align-items:center;justify-content:space-between"><span>🔔 Enable bill reminders in Setup</span><button class="btn sm" onclick="navigate('settings')">Setup →</button></div>`
+    : '';
 
   if (isDesktop) {
     // Desktop: top fixed bar
@@ -900,6 +1010,10 @@ function calculateCycle(person, window, rolloverIn, sharedAlloc) {
 // ══════════════════════════════════════════════════════════════════════════════
 function dashH() {
   const isDesktop = window.innerWidth >= 768;
+  // Notification nudge — show once if not set up
+  const notifNudge = (typeof Notification !== 'undefined' && Notification.permission === 'default')
+    ? `<div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--text2);display:flex;align-items:center;justify-content:space-between"><span>🔔 Enable bill reminders in Setup</span><button class="btn sm" onclick="navigate('settings')">Setup →</button></div>`
+    : '';
   const inc = S.settings.incomes;
   const sharedAlloc = S.settings.sharedAllocs.reduce((s,a)=>s+a.amount, 0);
   const t = today();
@@ -1116,7 +1230,7 @@ const blockWrapOpen  = isDesktop ? `<div class="dt-income-grid${order.length===1
     </div>
   </div>
   ${inc.length===0 ? '<div class="alert-info" style="margin-top:10px">Welcome! Go to <strong>Setup</strong> to add your household details.</div>' : ''}
-  <div class="${isDesktop?'dt-banner':''} ">${arrearsBanner}${missedBanner}${shortfallBanner}</div>
+  <div class="${isDesktop?'dt-banner':''} ">${notifNudge}${arrearsBanner}${missedBanner}${shortfallBanner}</div>
   ${isDesktop ? '<div class="dt-rollover-bar">'+rollovers+'</div>' : ''}
   ${blockWrapOpen}${isDesktop ? wbCards : blocks}${blockWrapClose}
   ${isDesktop?'<div class="dt-due-grid">':''}
@@ -1575,6 +1689,29 @@ function settingsH() {
       <button class="btn sm primary" onclick="STORAGE.exportJSON(S)">Export backup</button>
       <button class="btn sm" onclick="doImport()">Import backup</button>
     </div>
+  </div>
+
+  <div class="sec-lbl" style="margin-top:14px">Notifications</div>
+  <div class="card card-p">
+    ${getNotifPermission()==='granted'?`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--green-t)">✓ Notifications enabled</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Bill reminders are active</div>
+        </div>
+        <button class="btn sm" onclick="testNotification()">Test</button>
+      </div>
+      <div class="ff" style="margin-bottom:0"><label>Remind me this many hours before a bill is due</label>
+        <select id="notif-hours" onchange="S.settings.notifHours=+this.value;scheduleNotifications();autoSave();">
+          ${[4,8,12,24,48].map(h=>'<option value="'+h+'"'+(+(S.settings.notifHours||24)===h?' selected':'')+'>'+h+' hours before</option>').join('')}
+        </select>
+      </div>`
+    :getNotifPermission()==='denied'?`
+      <div style="font-size:13px;color:var(--red-t);font-weight:600;margin-bottom:6px">✗ Notifications blocked</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.6">Go to browser settings → Site settings → Notifications → find Yorbil → Allow.</div>`
+    :`
+      <div style="font-size:13px;color:var(--text);margin-bottom:10px">Get reminded before bills are due — even when the app is closed.</div>
+      <button class="btn" onclick="requestNotifPermission().then(ok=>{if(ok){scheduleNotifications();renderKeepScroll();}})">Enable bill reminders</button>`}
   </div>
 
   <div class="sec-lbl" style="color:var(--red-t)">Danger zone</div>
@@ -2495,8 +2632,14 @@ function init(){
 
   document.body.className=S.theme==='light'?'light':'';
   archiveOldLeaks();
+  scheduleNotifications();
   if(!S.onboarded){showOnboarding();}else{renderNav();render();}
-  if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      // Pass notification schedule to SW cache so it can fire when app is closed
+      if(reg.active) reg.active.postMessage('checkNotifs');
+    }).catch(()=>{});
+  }
   // Re-render nav on resize (desktop ↔ mobile switch)
   window.addEventListener('resize', () => { renderNav(); });
 }
