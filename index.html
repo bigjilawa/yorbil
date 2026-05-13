@@ -840,7 +840,6 @@ async function syncOnLoad() {
 }
 
 async function startSync() {
-  // Create a new channel and show the PIN
   try {
     const r = await fetch(SYNC_URL + '/channel/new', { method: 'POST' });
     const data = await r.json();
@@ -848,18 +847,23 @@ async function startSync() {
     S._syncAt = Date.now();
     S._syncStatus = 'ok';
     STORAGE.save(S);
+
     // Push current state to relay BEFORE showing PIN
-    // so when partner joins they get our data immediately
     const payload = JSON.stringify({ ...S, _syncAt: S._syncAt });
-    await fetch(SYNC_URL + '/channel/' + S._channelId, {
+    alert('DEBUG startSync: payload size = ' + Math.round(payload.length/1024) + 'KB\nChannel: ' + S._channelId.slice(-6));
+
+    const pushR = await fetch(SYNC_URL + '/channel/' + S._channelId, {
       method: 'PUT',
       body: payload,
       headers: { 'Content-Type': 'application/json' }
     });
+    const pushBody = await pushR.text();
+    alert('DEBUG startSync: push status=' + pushR.status + '\nresponse: ' + pushBody);
+
     updateSyncDot();
     showPinModal(data.pin);
   } catch(e) {
-    alert('Could not connect to sync server. Check your internet connection.');
+    alert('startSync ERROR: ' + e.message);
   }
 }
 
