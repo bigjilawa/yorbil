@@ -787,20 +787,27 @@ const SYNC_URL = 'https://yorbil-sync.bigjilawa.workers.dev';
 async function syncPush() {
   if (!S || !S._channelId) return;
   try {
-    const payload = JSON.stringify({ ...S, _syncAt: Date.now() });
+    // Strip heavy device-local arrays — actionLog and leakArchive stay local only
+    const syncPayload = {
+      ...S,
+      _syncAt: Date.now(),
+      actionLog:   [],
+      leakArchive: [],
+    };
+    const payload = JSON.stringify(syncPayload);
     const r = await fetch(SYNC_URL + '/channel/' + S._channelId, {
       method: 'PUT',
       body: payload,
       headers: { 'Content-Type': 'application/json' }
     });
     if (r.ok) {
-      S._syncAt = Date.now();
+      S._syncAt = syncPayload._syncAt;
       S._syncStatus = 'ok';
     } else {
       S._syncStatus = 'error';
     }
   } catch(e) {
-    S._syncStatus = 'error'; // silent fail — offline
+    S._syncStatus = 'error';
   }
   updateSyncDot();
 }
@@ -848,17 +855,27 @@ async function startSync() {
     S._syncStatus = 'ok';
     STORAGE.save(S);
 
-    // Push current state to relay BEFORE showing PIN
-    const payload = JSON.stringify({ ...S, _syncAt: S._syncAt });
-    alert('DEBUG startSync: payload size = ' + Math.round(payload.length/1024) + 'KB\nChannel: ' + S._channelId.slice(-6));
+    // Build sync payload — strip heavy history arrays to stay under 200KB
+    // actionLog and leakArchive are device-local, don't need syncing
+    const syncPayload = {
+      ...S,
+      _syncAt: S._syncAt,
+      actionLog:   [],   // device-local undo history — not synced
+      leakArchive: [],   // device-local archive — not synced
+    };
+    const payload = JSON.stringify(syncPayload);
 
     const pushR = await fetch(SYNC_URL + '/channel/' + S._channelId, {
       method: 'PUT',
       body: payload,
       headers: { 'Content-Type': 'application/json' }
     });
-    const pushBody = await pushR.text();
-    alert('DEBUG startSync: push status=' + pushR.status + '\nresponse: ' + pushBody);
+
+    if (!pushR.ok) {
+      const errBody = await pushR.text();
+      alert('Sync push failed: ' + pushR.status + ' — ' + errBody);
+      return;
+    }
 
     updateSyncDot();
     showPinModal(data.pin);
