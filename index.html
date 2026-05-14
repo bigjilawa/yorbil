@@ -371,13 +371,18 @@ const STORAGE = (function() {
       );
     }
     if (Array.isArray(parsed.bills)) {
-      parsed.bills = parsed.bills.map(b =>
-        applyDefaults(b, {
+      parsed.bills = parsed.bills.map(b => {
+        const mb = applyDefaults(b, {
           id:0, name:'', freq:'MONTHLY', amount:0, lastDue:null,
           paidHistory:[], include:true, missed:false, pinned:false,
           linkedLoanId:null, paymentPlan:null
-        })
-      );
+        });
+        // Fix {} empty object instead of null for linkedLoanId (backup corruption)
+        if (mb.linkedLoanId !== null && typeof mb.linkedLoanId === 'object' && !Array.isArray(mb.linkedLoanId)) {
+          mb.linkedLoanId = null;
+        }
+        return mb;
+      });
     }
     // Patch oneoff objects for new fields
     if (Array.isArray(parsed.oneoffs)) {
