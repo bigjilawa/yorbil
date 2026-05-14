@@ -935,6 +935,41 @@ async function joinSync(pin) {
   }
 }
 
+async function addAnotherDevice() {
+  // Generate a new PIN for the existing channel so another device can join
+  if (!S._channelId) return;
+  try {
+    // Create a new PIN mapping to our existing channel
+    const r = await fetch(SYNC_URL + '/channel/new', { method: 'POST' });
+    const data = await r.json();
+    // We don't use the new channelId — just borrow the PIN mechanism
+    // Actually: show a join modal on the other device and have them use our existing channel
+    // Simpler: re-push our state and show our channel's join PIN
+    // Best approach: create fresh PIN pointing to existing channel via a pin-for-existing endpoint
+    // Since worker doesn't have that endpoint, we'll push state to a temp channel and show PIN
+    // The joining device will get our state and we'll both sync to our real channel after
+    showPinModal(data.pin);
+    // Store mapping: when they join with this PIN they get our state from our real channel
+    // Push our current state to this temp channel too
+    await fetch(SYNC_URL + '/channel/' + data.channelId, {
+      method: 'PUT',
+      body: JSON.stringify({ ...S, _channelId: data.channelId, _syncAt: Date.now(), actionLog:[], leakArchive:[] }),
+      headers: { 'Content-Type': 'application/json' }
+    });
+    // After they join, tell them our real channel ID via the state
+    // Their joinSync will pull the state which includes _channelId pointing to our real channel
+    // But we need to tell them OUR channelId not the temp one
+    // Fix: push state with our real _channelId embedded
+    await fetch(SYNC_URL + '/channel/' + data.channelId, {
+      method: 'PUT',
+      body: JSON.stringify({ ...S, _syncAt: Date.now(), actionLog:[], leakArchive:[] }),
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch(e) {
+    alert('Could not generate PIN. Check your internet connection.');
+  }
+}
+
 function unpairSync() {
   if (!confirm('Unpair this phone from sync?\nYour data stays on this phone — it just stops syncing.')) return;
   S._channelId = null;
@@ -1849,7 +1884,8 @@ function settingsH() {
           <button class="btn sm" style="color:var(--red-t);border-color:var(--red-d)" onclick="unpairSync()">Unpair</button>
         </div>
       </div>
-      <div style="font-size:11px;color:var(--text3)">Channel: ••••${S._channelId.slice(-4)}</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Channel: ••••${S._channelId.slice(-4)}</div>
+      <button class="btn sm" style="background:var(--bg3)" onclick="addAnotherDevice()">+ Add another device</button>
     ` : `
       <div style="font-size:13px;color:var(--text);margin-bottom:12px">Keep both phones in sync automatically — bills, payments, and balances update on all devices.</div>
       <div style="display:flex;gap:8px">
