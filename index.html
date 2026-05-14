@@ -2787,8 +2787,25 @@ function obFinish(){
 // ══════════════════════════════════════════════════════════════════════════════
 // INIT — migrate old anchorDate model to new cycleStart/cycleEnd model
 // ══════════════════════════════════════════════════════════════════════════════
+function fixCorruptedData() {
+  if (!S || !S.bills) return;
+  let dirty = false;
+  S.bills.forEach(b => {
+    if (b.linkedLoanId !== null && b.linkedLoanId !== undefined &&
+        typeof b.linkedLoanId === 'object' && !Array.isArray(b.linkedLoanId)) {
+      b.linkedLoanId = null; dirty = true;
+    }
+    if (b.paymentPlan !== null && b.paymentPlan !== undefined &&
+        typeof b.paymentPlan === 'object' && !b.paymentPlan.debt) {
+      b.paymentPlan = null; dirty = true;
+    }
+  });
+  if (dirty) { STORAGE.save(S); }
+}
+
 function init(){
   const saved=STORAGE.load();S=saved||blankState();NID=S.nid||100;
+  fixCorruptedData();
 
   // Migration: old model used anchorDate+cycleType, new model uses cycleStart+cycleEnd
   if(Array.isArray(S.settings.incomes)){
