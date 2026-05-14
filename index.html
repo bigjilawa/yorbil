@@ -936,39 +936,23 @@ async function joinSync(pin) {
 }
 
 async function addAnotherDevice() {
-  // Generate a new PIN for the existing channel so another device can join
   if (!S._channelId) return;
   try {
-    // Create a new PIN mapping to our existing channel
-    const r = await fetch(SYNC_URL + '/channel/new', { method: 'POST' });
+    // Create a new PIN for the EXISTING channel — worker v2 endpoint
+    const r = await fetch(SYNC_URL + '/channel/pin/' + S._channelId, { method: 'POST' });
+    if (!r.ok) {
+      alert('Could not generate PIN. The channel may have expired — try unpairing and starting sync again.');
+      return;
+    }
     const data = await r.json();
-    // We don't use the new channelId — just borrow the PIN mechanism
-    // Actually: show a join modal on the other device and have them use our existing channel
-    // Simpler: re-push our state and show our channel's join PIN
-    // Best approach: create fresh PIN pointing to existing channel via a pin-for-existing endpoint
-    // Since worker doesn't have that endpoint, we'll push state to a temp channel and show PIN
-    // The joining device will get our state and we'll both sync to our real channel after
+    // Push current state so the joining device gets fresh data
+    await syncPush();
     showPinModal(data.pin);
-    // Store mapping: when they join with this PIN they get our state from our real channel
-    // Push our current state to this temp channel too
-    await fetch(SYNC_URL + '/channel/' + data.channelId, {
-      method: 'PUT',
-      body: JSON.stringify({ ...S, _channelId: data.channelId, _syncAt: Date.now(), actionLog:[], leakArchive:[] }),
-      headers: { 'Content-Type': 'application/json' }
-    });
-    // After they join, tell them our real channel ID via the state
-    // Their joinSync will pull the state which includes _channelId pointing to our real channel
-    // But we need to tell them OUR channelId not the temp one
-    // Fix: push state with our real _channelId embedded
-    await fetch(SYNC_URL + '/channel/' + data.channelId, {
-      method: 'PUT',
-      body: JSON.stringify({ ...S, _syncAt: Date.now(), actionLog:[], leakArchive:[] }),
-      headers: { 'Content-Type': 'application/json' }
-    });
   } catch(e) {
-    alert('Could not generate PIN. Check your internet connection.');
+    alert('Could not connect. Check your internet connection.');
   }
 }
+
 
 function unpairSync() {
   if (!confirm('Unpair this phone from sync?\nYour data stays on this phone — it just stops syncing.')) return;
