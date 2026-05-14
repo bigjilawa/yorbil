@@ -1237,20 +1237,16 @@ function dashH() {
   let shortfallBanner = '';
   if (inc.length > 0) {
     const _sfP=inc[activeIdx],_sfW=windows[activeIdx],_sfBank=+(_sfP.bank||0);
-    const _sfIn48=addDays(t,2)<=_sfW.end?addDays(t,2):_sfW.end;
-    const _sfBills=S.bills.filter(b=>{if(!b.include||b.missed)return false;const nd=nextDue(b);return nd&&nd>=t&&nd<=_sfIn48&&nd>=_sfW.start&&nd<=_sfW.end;});
-    const _sfO=S.oneoffs.filter(o=>o.include&&!o.paid&&o.due&&o.due>=t&&o.due<=_sfIn48&&o.due>=_sfW.start&&o.due<=_sfW.end);
-    const _sfAll=[..._sfBills.map(b=>({name:b.name,amount:b.amount})),..._sfO.map(o=>({name:o.name,amount:+(o.actualAmount)||o.amount}))];
-    if(_sfAll.length&&_sfBank>0){
-      const _sfItems=billsInWindow(_sfW.start,_sfW.end);
-      const _sfFut=_sfItems.filter(b=>b.type!=='oneoff'&&b.nd>=t).reduce((s,b)=>s+b.amount,0);
-      const _sfFutO=S.oneoffs.filter(o=>o.include&&!o.paid&&o.due>=t&&o.due>=_sfW.start&&o.due<=_sfW.end).reduce((s,o)=>s+(+(o.actualAmount)||o.amount),0);
-      const _sfAvail=_sfBank-_sfFut-_sfFutO;
-      if(_sfAvail<0){
-        const _sfNames=_sfAll.map(i=>i.name).join(', ');
+    if (_sfBank > 0) {
+      const _sfItems = billsInWindow(_sfW.start, _sfW.end);
+      const _sfFut   = _sfItems.filter(b => b.type!=='oneoff' && b.nd >= t).reduce((s,b)=>s+b.amount,0);
+      const _sfFutO  = S.oneoffs.filter(o=>o.include&&!o.paid&&o.due>=t&&o.due>=_sfW.start&&o.due<=_sfW.end).reduce((s,o)=>s+(+(o.actualAmount)||o.amount),0);
+      const _sfAvail = _sfBank - _sfFut - _sfFutO;
+      if (_sfAvail < 0) {
+        const _sfNames = _sfItems.filter(b=>b.nd>=t).map(b=>b.name).join(', ');
         shortfallBanner=`<div style="background:var(--amber-d);border:0.5px solid var(--amber);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--amber-t)">
           ⚠ <strong>Shortfall warning</strong> — bank ${fmt(_sfBank)} may be <strong>${fmt(Math.abs(_sfAvail))} short</strong> to cover remaining bills this cycle<br>
-          <span style="font-size:11px;opacity:.85;margin-top:4px;display:block">Upcoming: ${_sfNames}</span>
+          <span style="font-size:11px;opacity:.85;margin-top:4px;display:block">Remaining: ${_sfNames}</span>
         </div>`;
       }
     }
@@ -1375,17 +1371,28 @@ function dashH() {
         <div class="row-r"><div class="row-amt" style="${isCovered?'color:var(--text3)':'color:var(--text)'}">${fmt(item.amount)}</div>${dayPill(item.nd)}</div>
       </div>`;
     });
-    const billsOnly  = items.filter(i=>i.type!=='oneoff'&&i.type!=='var'&&!coveredBillIds.has(i.id)).reduce((s,i)=>s+i.amount,0);
-    const varsOnly   = items.filter(i=>i.type==='var').reduce((s,i)=>s+i.amount,0);
-    const oneoffOnly = items.filter(i=>i.type==='oneoff').reduce((s,i)=>s+i.amount,0);
-    const grandTotal = billsOnly+varsOnly+oneoffOnly;
+    const billsOnly   = items.filter(i=>i.type!=='oneoff'&&i.type!=='var'&&!coveredBillIds.has(i.id)).reduce((s,i)=>s+i.amount,0);
+    const varsOnly    = items.filter(i=>i.type==='var').reduce((s,i)=>s+i.amount,0);
+    const oneoffOnly  = items.filter(i=>i.type==='oneoff').reduce((s,i)=>s+i.amount,0);
+    const grandTotal  = billsOnly+varsOnly+oneoffOnly;
+    // Still to come out — unpaid bills with due date >= today
+    const t2 = today();
+    const stillBills  = items.filter(i=>i.type!=='oneoff'&&i.type!=='var'&&!coveredBillIds.has(i.id)&&i.nd>=t2).reduce((s,i)=>s+i.amount,0);
+    const stillVars   = items.filter(i=>i.type==='var'&&i.nd>=t2).reduce((s,i)=>s+i.amount,0);
+    const stillOneoffs= items.filter(i=>i.type==='oneoff'&&i.nd>=t2).reduce((s,i)=>s+i.amount,0);
+    const stillTotal  = stillBills+stillVars+stillOneoffs;
+    const alreadyPaid = grandTotal - stillTotal;
     if(varsOnly>0||oneoffOnly>0){
       h+=`<div class="row" style="background:var(--bg3)"><span style="font-size:12px;color:var(--text3)">Bills</span><span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(billsOnly)}</span></div>`;
       if(varsOnly>0)h+=`<div class="row" style="background:var(--bg3)"><span style="font-size:12px;color:var(--text3)">Variables</span><span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(varsOnly)}</span></div>`;
       if(oneoffOnly>0)h+=`<div class="row" style="background:var(--bg3)"><span style="font-size:12px;color:var(--text3)">One-offs</span><span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(oneoffOnly)}</span></div>`;
-      h+=`<div class="row" style="background:var(--bg4);border-top:1.5px solid var(--border2)"><span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span><span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(grandTotal)}</span></div>`;
-    } else {
-      h+=`<div class="row" style="background:var(--bg3)"><span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span><span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(grandTotal)}</span></div>`;
+    }
+    h+=`<div class="row" style="background:var(--bg4);border-top:1.5px solid var(--border2)"><span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span><span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(grandTotal)}</span></div>`;
+    if(stillTotal < grandTotal){
+      h+=`<div class="row" style="background:var(--bg3);border-top:0.5px solid var(--border)">
+        <div><span style="font-size:12px;font-weight:600;color:var(--text)">Still to come out</span><div style="font-size:10px;color:var(--text3);margin-top:1px">${fmt(alreadyPaid)} already paid/past</div></div>
+        <span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--amber-t)">${fmt(stillTotal)}</span>
+      </div>`;
     }
     h += '</div>';
     return h;
