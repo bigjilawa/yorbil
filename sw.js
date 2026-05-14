@@ -1,5 +1,5 @@
 // Yorbil Service Worker v8 — push notifications + network-first cache
-const CACHE = 'yorbil-v8';
+const CACHE = 'yorbil-v9';
 const ASSETS = ['./index.html','./manifest.json','./icon-192.png','./icon-512.png'];
 
 self.addEventListener('install', e => {

@@ -381,6 +381,14 @@ const STORAGE = (function() {
         if (mb.linkedLoanId !== null && typeof mb.linkedLoanId === 'object' && !Array.isArray(mb.linkedLoanId)) {
           mb.linkedLoanId = null;
         }
+        // Fix {} empty object instead of null (backup/sync corruption)
+        if (mb.linkedLoanId !== null && mb.linkedLoanId !== undefined && typeof mb.linkedLoanId === 'object' && !Array.isArray(mb.linkedLoanId)) {
+          mb.linkedLoanId = null;
+        }
+        // Fix paymentPlan same issue
+        if (mb.paymentPlan !== null && mb.paymentPlan !== undefined && typeof mb.paymentPlan === 'object' && !mb.paymentPlan.debt) {
+          mb.paymentPlan = null;
+        }
         return mb;
       });
     }
@@ -1491,7 +1499,7 @@ function billsH() {
               ${b.pinned ? '<span style="color:var(--amber-t);margin-right:3px;font-size:11px">📌</span>' : ''}
               ${b.name}
               ${b.missed ? '<span class="pill p-r" style="font-size:9px;margin-left:4px">MISSED</span>' : ''}
-              ${b.linkedLoanId ? '<span class="pill p-b" style="font-size:9px;margin-left:4px">LOAN</span>' : ''}
+              ${(b.linkedLoanId && typeof b.linkedLoanId !== 'object') ? '<span class="pill p-b" style="font-size:9px;margin-left:4px">LOAN</span>' : ''}
               ${b.paymentPlan && b.paymentPlan.debt > 0 && (b.paymentPlan.debt - b.paymentPlan.paid) > 0 ? `<span class="pill p-r" style="font-size:9px;margin-left:4px">⚠ ${fmt(Math.max(0,b.paymentPlan.debt-b.paymentPlan.paid))} arrears</span>` : ''}
             </div>
             <div class="row-sub">${b.freq}${nd?' · due '+fmtD(nd):''}${la?' · last paid '+fmtD(la):''}</div>
@@ -1948,7 +1956,7 @@ function markPaid(id) {
     const actualDate=$('m-ap').value||today();
     const diff=actualAmt-b.amount;
     // Snapshot before change
-    saveAction(`${b.name} — marked paid ${fmt(actualAmt)}`, {
+    saveAction(b.name+' — marked paid '+fmt(actualAmt), {
       bills: JSON.parse(JSON.stringify(S.bills)),
       loans: JSON.parse(JSON.stringify(S.loans)),
       leaks: JSON.parse(JSON.stringify(S.leaks))
@@ -1986,10 +1994,10 @@ function markPaid(id) {
     }
     autoSave();renderKeepScroll();
     if(diff!==0&&!b.linkedLoanId){
-      const msg=diff>0?`Paid ${fmt(actualAmt)} — ${fmt(diff)} over budget, logged as a leak.`:`Paid ${fmt(actualAmt)} — ${fmt(Math.abs(diff))} under budget.`;
+      const msg=diff>0?('Paid '+fmt(actualAmt)+' — '+fmt(diff)+' over budget, logged as a leak.'):('Paid '+fmt(actualAmt)+' — '+fmt(Math.abs(diff))+' under budget.');
       alert(msg);
     } else if(diff!==0&&b.linkedLoanId){
-      const msg=diff>0?`Paid ${fmt(actualAmt)} — extra ${fmt(diff)} applied to principal. Loan balance updated.`:`Paid ${fmt(actualAmt)} — noted.`;
+      const msg=diff>0?('Paid '+fmt(actualAmt)+' — extra '+fmt(diff)+' applied to principal. Loan balance updated.'):('Paid '+fmt(actualAmt)+' — noted.');
       alert(msg);
     }
   });
@@ -2803,7 +2811,7 @@ function init(){
   document.body.className=S.theme==='light'?'light':'';
   archiveOldLeaks();
   if(!S.onboarded){showOnboarding();}else{renderNav();render();syncOnLoad();}
-  if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js'+'?v=291').catch(()=>{});}
   // Re-render nav on resize (desktop ↔ mobile switch)
   window.addEventListener('resize', () => { renderNav(); });
 }
