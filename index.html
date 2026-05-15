@@ -1239,14 +1239,25 @@ function dashH() {
     const _sfP=inc[activeIdx],_sfW=windows[activeIdx],_sfBank=+(_sfP.bank||0);
     if (_sfBank > 0) {
       const _sfItems = billsInWindow(_sfW.start, _sfW.end);
-      const _sfFut   = _sfItems.filter(b => b.type!=='oneoff' && b.nd >= t).reduce((s,b)=>s+b.amount,0);
+      const _sfFutItems = _sfItems.filter(b => b.nd >= t).sort((a,b)=>a.nd.localeCompare(b.nd));
+      const _sfFut   = _sfFutItems.filter(b=>b.type!=='oneoff').reduce((s,b)=>s+b.amount,0);
       const _sfFutO  = S.oneoffs.filter(o=>o.include&&!o.paid&&o.due>=t&&o.due>=_sfW.start&&o.due<=_sfW.end).reduce((s,o)=>s+(+(o.actualAmount)||o.amount),0);
       const _sfAvail = _sfBank - _sfFut - _sfFutO;
       if (_sfAvail < 0) {
-        const _sfNames = _sfItems.filter(b=>b.nd>=t).map(b=>b.name).join(', ');
+        // Walk bills in date order to find which ones you can and can't cover
+        let _running = _sfBank;
+        const _canCover = [], _cantCover = [];
+        _sfFutItems.forEach(b => {
+          _running -= b.amount;
+          if (_running >= 0) _canCover.push(b.name);
+          else _cantCover.push(b.name);
+        });
+        const _listStr = _cantCover.length
+          ? `May be short for: ${_cantCover.join(', ')}`
+          : `Still to come out: ${_sfFutItems.map(b=>b.name).join(', ')}`;
         shortfallBanner=`<div style="background:var(--amber-d);border:0.5px solid var(--amber);border-radius:10px;margin:4px 14px;padding:10px 14px;font-size:12px;color:var(--amber-t)">
           ⚠ <strong>Shortfall warning</strong> — bank ${fmt(_sfBank)} may be <strong>${fmt(Math.abs(_sfAvail))} short</strong> to cover remaining bills this cycle<br>
-          <span style="font-size:11px;opacity:.85;margin-top:4px;display:block">Remaining: ${_sfNames}</span>
+          <span style="font-size:11px;opacity:.85;margin-top:4px;display:block">${_listStr}</span>
         </div>`;
       }
     }
