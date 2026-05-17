@@ -1417,9 +1417,10 @@ function dashH() {
       if(oneoffOnly>0)h+=`<div class="row" style="background:var(--bg3)"><span style="font-size:12px;color:var(--text3)">One-offs</span><span style="font-family:var(--fm);font-weight:600;color:var(--text2)">${fmt(oneoffOnly)}</span></div>`;
     }
     h+=`<div class="row" style="background:var(--bg4);border-top:1.5px solid var(--border2)"><span style="font-size:13px;font-weight:700;color:var(--text)">Total due this cycle</span><span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--blue-t)">${fmt(grandTotal)}</span></div>`;
-    if(stillTotal < grandTotal){
+    const hasLatePast = items.some(i => i.nd < t2 && isUnpaidItem(i));
+    if(stillTotal < grandTotal || hasLatePast){
       h+=`<div class="row" style="background:var(--bg3);border-top:0.5px solid var(--border)">
-        <div><span style="font-size:12px;font-weight:600;color:var(--text)">Still to come out</span><div style="font-size:10px;color:var(--text3);margin-top:1px">${fmt(alreadyPaid)} already paid/past</div></div>
+        <div><span style="font-size:12px;font-weight:600;color:var(--text)">Still to come out</span><div style="font-size:10px;color:var(--text3);margin-top:1px">${alreadyPaid>0?fmt(alreadyPaid)+' paid this cycle':hasLatePast?'includes overdue bills':''}</div></div>
         <span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--amber-t)">${fmt(stillTotal)}</span>
       </div>`;
     }
