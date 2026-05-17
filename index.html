@@ -571,7 +571,14 @@ function advanceOne(freq, d) {
 
 function billOccurrenceInWindow(b, ws, we) {
   if (!b.lastDue) return null;
-  // Start from the NEXT occurrence after lastDue (lastDue itself is already paid)
+  // If lastDue itself is within the window AND unpaid for that date,
+  // the bill is overdue — return lastDue as the occurrence
+  if (b.lastDue >= ws && b.lastDue <= we) {
+    const ph = b.paidHistory || [];
+    const paidOnLastDue = ph.some(h => h.due === b.lastDue);
+    if (!paidOnLastDue) return b.lastDue;
+  }
+  // Otherwise look for the next occurrence after lastDue
   let d = advanceOne(b.freq, b.lastDue);
   for (let i = 0; i < 500; i++) {
     if (d > we) break;
@@ -1153,8 +1160,13 @@ function calculateCycle(person, window, rolloverIn, sharedAlloc) {
   // Bank mode: use actual bank balance minus future bills
   const bank          = +(person.bank||0);
   const t2            = t;
+  // isUnpaid: check if this specific occurrence (nd) has a paidHistory entry
+  const isUnpaid = (b) => {
+    const ph = b.paidHistory || [];
+    return !ph.some(h => h.due === b.nd);
+  };
   const remainingBills  = bank > 0
-    ? billItems.filter(b => b.type !== 'oneoff' && b.nd >= t2).reduce((s,b) => s+b.amount, 0)
+    ? billItems.filter(b => b.type !== 'oneoff' && (b.nd >= t2 || isUnpaid(b))).reduce((s,b) => s+b.amount, 0)
     : 0;
   const remainingOneoffs = bank > 0
     ? S.oneoffs.filter(o => o.include && !o.paid && o.due >= t2 && o.due >= start && o.due <= end).reduce((s,o) => s+(+(o.actualAmount)||o.amount), 0)
@@ -1240,14 +1252,16 @@ function dashH() {
     if (_sfBank > 0) {
       const _sfItems = billsInWindow(_sfW.start, _sfW.end);
       const _sfFutItems = _sfItems.filter(b => b.nd >= t).sort((a,b)=>a.nd.localeCompare(b.nd));
-      const _sfFut   = _sfFutItems.filter(b=>b.type!=='oneoff').reduce((s,b)=>s+b.amount,0);
+      const _sfIsUnpaid = (b) => { const ph=b.paidHistory||[]; return !ph.some(h=>h.due===b.nd); };
+      const _sfFutItems2 = _sfItems.filter(b => b.nd >= t || _sfIsUnpaid(b));
+      const _sfFut   = _sfFutItems2.filter(b=>b.type!=='oneoff').reduce((s,b)=>s+b.amount,0);
       const _sfFutO  = S.oneoffs.filter(o=>o.include&&!o.paid&&o.due>=t&&o.due>=_sfW.start&&o.due<=_sfW.end).reduce((s,o)=>s+(+(o.actualAmount)||o.amount),0);
       const _sfAvail = _sfBank - _sfFut - _sfFutO;
       if (_sfAvail < 0) {
         // Walk bills in date order to find which ones you can and can't cover
         let _running = _sfBank;
         const _canCover = [], _cantCover = [];
-        _sfFutItems.forEach(b => {
+        _sfFutItems2.forEach(b => {
           _running -= b.amount;
           if (_running >= 0) _canCover.push(b.name);
           else _cantCover.push(b.name);
@@ -1300,8 +1314,10 @@ function dashH() {
     const bankDiff  = bank > 0 ? bank - projected : null;
     // Bills still to come out = bills due AFTER today in this window
     const t2 = today();
+    // isUnpaidOcc: true if this bill occurrence (nd) has no paidHistory entry
+    const isUnpaidOcc = (b) => { const ph=b.paidHistory||[]; return !ph.some(h=>h.due===b.nd); };
     const remainingBills = bank > 0
-      ? billItems.filter(b => !boundaryIds.has(b.id) && b.type!=='oneoff' && b.nd >= t2).reduce((s,b)=>s+b.amount,0)
+      ? billItems.filter(b => !boundaryIds.has(b.id) && b.type!=='oneoff' && (b.nd >= t2 || isUnpaidOcc(b))).reduce((s,b)=>s+b.amount,0)
       : 0;
     const remainingOneoffs = bank > 0
       ? S.oneoffs.filter(o => o.include && !o.paid && o.due >= t2 && o.due >= start && o.due <= extEnd).reduce((s,o)=>s+(+(o.actualAmount)||o.amount),0)
@@ -1388,7 +1404,9 @@ function dashH() {
     const grandTotal  = billsOnly+varsOnly+oneoffOnly;
     // Still to come out — unpaid bills with due date >= today
     const t2 = today();
-    const stillBills  = items.filter(i=>i.type!=='oneoff'&&i.type!=='var'&&!coveredBillIds.has(i.id)&&i.nd>=t2).reduce((s,i)=>s+i.amount,0);
+    // isUnpaidItem: check if this occurrence has no paidHistory entry
+    const isUnpaidItem = (i) => { const ph = i.paidHistory||[]; return !ph.some(h=>h.due===i.nd); };
+    const stillBills  = items.filter(i=>i.type!=='oneoff'&&i.type!=='var'&&!coveredBillIds.has(i.id)&&(i.nd>=t2||isUnpaidItem(i))).reduce((s,i)=>s+i.amount,0);
     const stillVars   = items.filter(i=>i.type==='var'&&i.nd>=t2).reduce((s,i)=>s+i.amount,0);
     const stillOneoffs= items.filter(i=>i.type==='oneoff'&&i.nd>=t2).reduce((s,i)=>s+i.amount,0);
     const stillTotal  = stillBills+stillVars+stillOneoffs;
