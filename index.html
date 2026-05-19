@@ -489,7 +489,7 @@ let saveDot, saveTimer;
 function autoSave() {
   if (saveDot) saveDot.style.background='var(--amber)';
   clearTimeout(saveTimer); S.nid = NID;
-  saveTimer = setTimeout(() => { STORAGE.save(S); if(saveDot) saveDot.style.background='var(--green)'; syncPush(); }, 600);
+  saveTimer = setTimeout(() => { STORAGE.save(S); if(saveDot) saveDot.style.background='var(--green)'; }, 600);
 }
 
 // ── Action history ────────────────────────────────────────────────────────────
@@ -2866,7 +2866,7 @@ function init(){
 
   document.body.className=S.theme==='light'?'light':'';
   archiveOldLeaks();
-  if(!S.onboarded){showOnboarding();}else{renderNav();render();syncOnLoad();}
+  if(!S.onboarded){showOnboarding();}else{renderNav();render();}
   if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js'+'?v=291').catch(()=>{});}
   // Re-render nav on resize (desktop ↔ mobile switch)
   window.addEventListener('resize', () => { renderNav(); });
