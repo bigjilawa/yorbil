@@ -560,6 +560,19 @@ function nextDue(b) {
   return null;
 }
 
+// nextDueAware: returns lastDue if it's unpaid (overdue), otherwise nextDue
+// This is the SINGLE function all bill UI and interactions must use
+function nextDueAware(b) {
+  if (!b.lastDue) return null;
+  const ph = b.paidHistory || [];
+  const paidOnLastDue = ph.some(h => h.due === b.lastDue);
+  if (!paidOnLastDue) {
+    // lastDue is unpaid — it IS the current due date (overdue)
+    return b.lastDue;
+  }
+  return nextDue(b);
+}
+
 function advanceOne(freq, d) {
   if (freq==='WEEKLY')      return addDays(d,7);
   if (freq==='FORTNIGHTLY') return addDays(d,14);
@@ -1507,7 +1520,7 @@ function billsH() {
     if (!bills.length) return '<div class="empty">No bills yet — tap + Add</div>';
     let html = '', lastOwnerIdx = -1;
     bills.forEach(b => {
-      const nd = nextDue(b);
+      const nd = nextDueAware(b);
       const hist = b.paidHistory||[];
       const la = hist.length ? hist[hist.length-1].actual : null;
 
@@ -1978,7 +1991,7 @@ function billModal(id) {
 
 function markPaid(id) {
   const b=S.bills.find(x=>x.id===id);if(!b)return;
-  const nd=nextDue(b)||today();
+  const nd=nextDueAware(b)||today();
   const linkedLoan=b.linkedLoanId?S.loans.find(l=>l.id===b.linkedLoanId):null;
   modal('Mark as paid',`
     <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">Scheduled: <strong style="color:var(--text)">${fmtD(nd)} · ${fmt(b.amount)}</strong></div>
@@ -2061,7 +2074,7 @@ function unMissed(id) {
 function paymentPlanModal(id) {
   const b=S.bills.find(x=>x.id===id);if(!b)return;
   // When missed, nextDue returns the overdue date. We need one cycle AFTER that.
-  const overdueDate=nextDue(b)||today();
+  const overdueDate=nextDueAware(b)||today();
   const nd=advanceOne(b.freq, overdueDate);
   modal('Start Payment Plan — '+b.name,`
     <div style="background:var(--blue-d);border:0.5px solid var(--blue);border-radius:10px;padding:12px 14px;margin-bottom:14px">
@@ -2093,7 +2106,7 @@ function paymentPlanModal(id) {
     b.missed=false;
     b.lastDue=overdueDate;
     autoSave(); render();
-    alert(`Payment plan started.\n\nArrears: ${fmt(debtAmt)}\nNext due: ${fmtD(nextDue(b))}\n\nWhen marking paid, enter more than ${fmt(b.amount)} to reduce arrears.`);
+    alert(`Payment plan started.\n\nArrears: ${fmt(debtAmt)}\nNext due: ${fmtD(nextDueAware(b))}\n\nWhen marking paid, enter more than ${fmt(b.amount)} to reduce arrears.`);
   });
 }
 
@@ -2144,7 +2157,7 @@ function retryModal(id) {
     const charged=+$('m-rc').value||b.amount;
     const date=$('m-rd').value||today();
     const penalty=Math.max(0,charged-b.amount);
-    const nd=nextDue(b)||today();
+    const nd=nextDueAware(b)||today();
     // Snapshot before change
     saveAction(`${b.name} — retry payment ${fmt(charged)}${penalty>0?' (+'+fmt(penalty)+' penalty)':''}`, {
       bills: JSON.parse(JSON.stringify(S.bills)),
@@ -2177,7 +2190,7 @@ function retryModal(id) {
     b.missed=false;
 
     autoSave();renderKeepScroll();
-    alert(`Done! ${penalty>0?`Penalty of ${fmt(penalty)} logged as a leak. `:''}Bill is back on cycle — next due ${fmtD(nextDue(b))}.`);
+    alert(`Done! ${penalty>0?`Penalty of ${fmt(penalty)} logged as a leak. `:''}Bill is back on cycle — next due ${fmtD(nextDueAware(b))}.`);
   });
 }
 
