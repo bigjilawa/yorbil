@@ -266,7 +266,7 @@ body.light #modal-el .card{background:#ffffff;border:0.5px solid #e2e8f0}
   .dt-savings-gap { margin-top: 20px !important; }
   .row:hover      { background: var(--bg3) !important; }
   .btn-icon:hover { background: var(--bg3) !important; border-radius: 6px !important; }
-}
+
   .dt-rollover-bar { padding: 0 24px; margin-bottom: 12px; }
   .dt-rollover-bar .rollover {
     margin: 0 !important;
@@ -279,6 +279,7 @@ body.light #modal-el .card{background:#ffffff;border:0.5px solid #e2e8f0}
     content: '';
     display: block;
   }
+}
 </style>
 </head>
 <body>
@@ -618,7 +619,7 @@ function billsInWindow(ws, we) {
   const items = [];
   S.bills.filter(b => b.include && !b.missed).forEach(b => {
     const nd = billOccurrenceInWindow(b, ws, we);
-    if (nd) items.push({ name:b.name, nd, amount:b.amount, type:'bill', id:b.id });
+    if (nd) items.push({ name:b.name, nd, amount:b.amount, type:'bill', id:b.id, paidHistory:b.paidHistory||[] });
   });
   S.variables.filter(v => v.include && !v.paid && v.due && v.due >= ws && v.due <= we).forEach(v => {
     items.push({ name:v.name, nd:v.due, amount:v.amount, type:'var', id:v.id });
@@ -660,9 +661,9 @@ function dayPill(nd) {
 
 // Sorted bill list: pinned first, then date order
 function sortedBills() {
-  const pinned   = S.bills.filter(b => b.pinned).sort((a,b) => (nextDue(a)||'').localeCompare(nextDue(b)||''));
+  const pinned   = S.bills.filter(b => b.pinned).sort((a,b) => (nextDueAware(a)||'').localeCompare(nextDueAware(b)||''));
   const unpinned = S.bills.filter(b => !b.pinned).sort((a,b) => {
-    const na=nextDue(a)||'9999', nb=nextDue(b)||'9999'; return na.localeCompare(nb);
+    const na=nextDueAware(a)||'9999', nb=nextDueAware(b)||'9999'; return na.localeCompare(nb);
   });
   return [...pinned, ...unpinned];
 }
@@ -1009,7 +1010,7 @@ function openJoinModal() {
   modal('Join sync', `
     <div class="ff" style="margin-bottom:0">
       <label>Enter the 6-digit PIN from your partner's phone</label>
-      <input id="m-pin" type="number" placeholder="123456" style="font-size:24px;text-align:center;letter-spacing:4px" maxlength="6">
+      <input id="m-pin" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="123456" style="font-size:24px;text-align:center;letter-spacing:4px" maxlength="6">
     </div>`,
   () => {
     const pin = $('m-pin') ? $('m-pin').value.trim() : '';
@@ -2091,11 +2092,12 @@ function paymentPlanModal(id) {
     </div>
     <div class="ff" style="margin-bottom:0">
       <label>Arrears amount ($)</label>
-      <input id="m-ppa" type="number" value="${b.amount}" placeholder="${b.amount}">
+      <input id="m-ppa" type="text" inputmode="decimal" value="${b.amount}" placeholder="${b.amount}">
       <div style="font-size:11px;color:var(--text3);margin-top:4px">The amount owed from the missed payment. Adjust if a partial payment was already made.</div>
     </div>`,
   ()=>{
-    const debtAmt=+$('m-ppa').value||b.amount;
+    const _ppaEl = $('m-ppa');
+    const debtAmt = _ppaEl && _ppaEl.value !== '' ? +_ppaEl.value || b.amount : b.amount;
     if(!confirm(`Start payment plan for ${b.name}?\n\nArrears: ${fmt(debtAmt)}\nBill resets to: ${fmtD(nd)}\n\nThis will unfreeze the bill and advance it forward.`)) return;
     saveAction(`${b.name} — payment plan started (${fmt(debtAmt)} arrears)`, {
       bills: JSON.parse(JSON.stringify(S.bills)),
@@ -2147,14 +2149,15 @@ function retryModal(id) {
       <strong>${b.name}</strong> — ${cycles} cycle${cycles!==1?'s':''} missed · Original: ${fmt(b.amount)}
     </div>
     <div class="ff"><label>Total amount actually charged ($)</label>
-      <input id="m-rc" type="number" placeholder="${b.amount}" value="${b.amount}">
+      <input id="m-rc" type="text" inputmode="decimal" placeholder="${b.amount}" value="${b.amount}">
       <div style="font-size:11px;color:var(--text3);margin-top:4px">Enter whatever they actually took out. Any amount above the original becomes a penalty leak.</div>
     </div>
     <div class="ff" style="margin-bottom:0"><label>Date payment came out</label>
       <input id="m-rd" type="date" value="${today()}">
     </div>`,
   ()=>{
-    const charged=+$('m-rc').value||b.amount;
+    const _rcEl = $('m-rc');
+    const charged = _rcEl && _rcEl.value !== '' ? +_rcEl.value || b.amount : b.amount;
     const date=$('m-rd').value||today();
     const penalty=Math.max(0,charged-b.amount);
     const nd=nextDueAware(b)||today();
@@ -2164,10 +2167,13 @@ function retryModal(id) {
       loans: JSON.parse(JSON.stringify(S.loans)),
       leaks: JSON.parse(JSON.stringify(S.leaks))
     });
-    // Log in history
+    // Log in history — record against the LATEST missed due date so
+    // nextDueAware sees that occurrence as paid and advances correctly
+    let latestDue = b.lastDue || date;
+    for(let i=0;i<cycles;i++) latestDue=advanceOne(b.freq,latestDue);
     if(!b.paidHistory)b.paidHistory=[];
     b.paidHistory.push({
-      due:nd, actual:date, retry:true,
+      due:latestDue, actual:date, retry:true,
       charged, original:b.amount, penalty
     });
 
@@ -2176,17 +2182,8 @@ function retryModal(id) {
       S.leaks.push({id:nid(),date,category:`Missed payment penalty — ${b.name}`,amount:penalty,note:`Retry: charged ${fmt(charged)}, original ${fmt(b.amount)}`});
     }
 
-    // Advance lastDue by correct number of periods to get back on cycle
-    let advancedDate = b.lastDue||date;
-    for(let i=0;i<=cycles;i++) advancedDate=advanceOne(b.freq,advancedDate);
-    b.lastDue=advanceOne(b.freq,advancedDate); // one more to set next due correctly
-    // Actually: set lastDue to the most recent missed due date so nextDue points to next upcoming
-    let d=b.lastDue||date;
-    for(let i=0;i<cycles+1&&i<200;i++) d=advanceOne(b.freq,b.lastDue||date);
-    // Simple: advance from original lastDue by (cycles+1) periods
-    let ld=b.lastDue||today();
-    for(let i=0;i<cycles+1;i++) ld=advanceOne(b.freq,ld);
-    b.lastDue=ld;
+    // lastDue = latest covered due date; nextDueAware now points one period ahead
+    b.lastDue=latestDue;
     b.missed=false;
 
     autoSave();renderKeepScroll();
@@ -2256,14 +2253,15 @@ function markVarPaid(id){
   modal('Log actual spend',`
     <div style="margin-bottom:10px;font-size:13px;color:var(--text2)">Budgeted: <strong style="color:var(--text)">${fmt(weeklyAmt(v))}/week</strong></div>
     <div class="ff"><label>Actual amount spent this cycle ($)</label>
-      <input id="m-vpa" type="number" value="${v.amount}" placeholder="${v.amount}">
+      <input id="m-vpa" type="text" inputmode="decimal" value="${v.amount}" placeholder="${v.amount}">
       <div style="font-size:11px;color:var(--text3);margin-top:4px">Enter what you actually spent. If under budget, the saving is noted.</div>
     </div>
     <div class="ff" style="margin-bottom:0"><label>Date</label>
       <input id="m-vpd" type="date" value="${today()}">
     </div>`,
   ()=>{
-    const actual=+$('m-vpa').value||v.amount;
+    const _vpaEl = $('m-vpa');
+    const actual = _vpaEl && _vpaEl.value !== '' ? +_vpaEl.value || v.amount : v.amount;
     const date=$('m-vpd').value||today();
     const diff=actual-v.amount;
     if(!v.history)v.history=[];
@@ -2313,14 +2311,15 @@ function markOneoffPaid(id){
   modal('Mark one-off as paid',`
     <div style="margin-bottom:10px;font-size:13px;color:var(--text2)">Budgeted: <strong style="color:var(--text)">${fmt(o.amount)}</strong></div>
     <div class="ff"><label>Actual amount spent ($)</label>
-      <input id="m-opa" type="number" value="${o.amount}" placeholder="${o.amount}">
+      <input id="m-opa" type="text" inputmode="decimal" value="${o.amount}" placeholder="${o.amount}">
       <div style="font-size:11px;color:var(--text3);margin-top:4px">Enter what you actually spent. Leave as budgeted amount if exact.</div>
     </div>
     <div class="ff" style="margin-bottom:0"><label>Date paid</label>
       <input id="m-opd" type="date" value="${today()}">
     </div>`,
   ()=>{
-    const actual=+$('m-opa').value||o.amount;
+    const _opaEl = $('m-opa');
+    const actual = _opaEl && _opaEl.value !== '' ? +_opaEl.value || o.amount : o.amount;
     const paidDate=$('m-opd').value||today();
     const diff=actual-o.amount;
     if(!o.history)o.history=[];
@@ -2528,6 +2527,7 @@ function buildAndPrintStatement(ws, we) {
   }
 
   const win = window.open('','_blank');
+  if (!win) { alert('Could not open the statement — your browser blocked the popup. Allow popups for Yorbil and try again.'); return; }
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>${hn} Statement — ${fd(ws)} to ${fd(we)}</title>
   <style>
@@ -2553,93 +2553,7 @@ function buildAndPrintStatement(ws, we) {
     .pill-r{background:#fee2e2;color:#dc2626}.pill-b{background:#dbeafe;color:#1d4ed8}.pill-g{background:#dcfce7;color:#16a34a}
     .st-footer{border-top:1px solid #e2e8f0;padding-top:12px;font-size:11px;color:#94a3b8;text-align:center;margin-top:32px}
     @media print{body{padding:16px}button{display:none!important}}
-  
-
-
-
-
-/* ══ DESKTOP ═══════════════════════════════════════════════════════════════ */
-@media (min-width: 768px) {
-
-  html, body { height: 100%; }
-
-  /* Fixed top nav bar */
-  #dt-topbar {
-    display: flex !important;
-    position: fixed;
-    top: 0; left: 0; right: 0; z-index: 200;
-    height: 52px;
-    background: var(--bg2);
-    border-bottom: 1px solid var(--border);
-    padding: 0 24px;
-    align-items: center;
-    gap: 0;
-  }
-  #dt-logo { flex-shrink: 0; margin-right: 24px; }
-  #dt-tabs  { display: flex; gap: 4px; align-items: center; flex: 1; justify-content: center; }
-  #dt-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-
-  .dt-tab {
-    display: flex; align-items: center; gap: 7px;
-    padding: 7px 14px; border-radius: 8px;
-    border: none; background: transparent;
-    color: var(--text2); font-size: 13px; font-weight: 500;
-    cursor: pointer; white-space: nowrap;
-    font-family: var(--ff);
-    transition: background .12s, color .12s;
-  }
-  .dt-tab:hover  { background: var(--bg3); color: var(--text); }
-  .dt-tab.active { background: var(--blue)28; color: var(--blue-t); font-weight: 700; }
-  .dt-tab .dt-icon { font-size: 15px; }
-
-  /* Hide mobile bottom nav */
-  #nav { display: none !important; }
-
-  /* Root — override ALL mobile constraints */
-  #root {
-    max-width: 100% !important;
-    width: 100% !important;
-    margin: 52px 0 0 0 !important;
-    border: none !important;
-    display: block !important;
-    height: calc(100vh - 52px) !important;
-    overflow-y: auto !important;
-    overflow-x: hidden;
-  }
-
-  /* Content fills full width */
-  #content { max-width: none; width: 100%; }
-
-  /* Page padding */
-  .pg-hdr   { padding: 16px 28px 12px; max-width: none; }
-  .sec-lbl  { padding-left: 28px; padding-right: 28px; }
-  .card, .wb, .lc, .gc, .card.card-p { margin-left: 28px; margin-right: 28px; }
-
-  /* Dashboard income cards side by side */
-  .dt-income-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    padding: 0 28px;
-    margin-bottom: 8px;
-  }
-  .dt-income-grid > * { margin: 0 !important; }
-  .dt-income-grid .rollover { grid-column: 1 / -1; margin: 0 !important; }
-
-  /* Due lists side by side */
-  .dt-due-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    padding: 0 28px;
-  }
-  .dt-due-grid > * { margin: 0 !important; }
-
-  /* Hover states */
-  .row:hover { background: var(--bg3); transition: background .1s; }
-  .btn-icon:hover { background: var(--bg3); border-radius: 6px; }
-}
-</style>
+  </style>
   </head><body>
   <div class="st-header">
     <div class="st-title">YORBIL</div>
