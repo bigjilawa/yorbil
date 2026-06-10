@@ -1074,6 +1074,7 @@ const PAGES = [
   {id:'bills',    lbl:'Bills', icon:'≡'},
   {id:'loans',    lbl:'Loans', icon:'↓'},
   {id:'savings',  lbl:'Goals', icon:'◎'},
+  {id:'insights', lbl:'Spend', icon:'%'},
   {id:'leaks',    lbl:'Leaks', icon:'~'},
   {id:'settings', lbl:'Setup', icon:'⚙'},
   {id:'help',     lbl:'Help',  icon:'?'},
@@ -1119,6 +1120,7 @@ function render() {
   else if (PAGE==='bills')     c.innerHTML = billsH();
   else if (PAGE==='loans')     c.innerHTML = loansH();
   else if (PAGE==='savings')   c.innerHTML = savingsH();
+  else if (PAGE==='insights')  c.innerHTML = insightsH();
   else if (PAGE==='leaks')     c.innerHTML = leaksH();
   else if (PAGE==='settings')  c.innerHTML = settingsH();
   else if (PAGE==='help')      c.innerHTML = helpH();
@@ -1142,6 +1144,7 @@ function renderKeepScroll() {
   else if (PAGE==='bills')     c.innerHTML = billsH();
   else if (PAGE==='loans')     c.innerHTML = loansH();
   else if (PAGE==='savings')   c.innerHTML = savingsH();
+  else if (PAGE==='insights')  c.innerHTML = insightsH();
   else if (PAGE==='leaks')     c.innerHTML = leaksH();
   else if (PAGE==='settings')  c.innerHTML = settingsH();
   c.scrollTop = pos;
@@ -1742,6 +1745,152 @@ function savingsH() {
     </div>`;}).join('') : '<div class="card card-p empty">No goals yet</div>'}
   <div style="height:8px"></div>`;
 
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SPEND INSIGHTS — where the money goes
+// ══════════════════════════════════════════════════════════════════════════════
+let SPEND_VIEW = 'budget';   // 'budget' | 30 | 60 | 90
+let SPEND_OPEN = {};         // expanded categories
+
+const SPEND_CATS = [
+  { key:'Debt repayments',     color:'#e05555', test:n=>/LOAN|PAYRIGHT|\bPL\b|AFTERPAY|ZIPPAY|ZIP PAY|LATITUDE/i.test(n) },
+  { key:'Housing & utilities', color:'#4a9fff', test:n=>/RENT|MORTGAGE|ELECTRIC|\bGAS\b|WATER|INTERNET|NBN|STRATA/i.test(n) },
+  { key:'Insurance',           color:'#0fb8a0', test:n=>/INSURANCE/i.test(n) },
+  { key:'Health & fitness',    color:'#2ec87a', test:n=>/GYM|IVF|MEDIC|DOCTOR|DENTAL|PHARM|SURGERY|PHYSIO/i.test(n) },
+  { key:'Phones & work',       color:'#8b5cf6', test:n=>/PHONE|UNION|MOBILE/i.test(n) },
+  { key:'Subscriptions',       color:'#e09a1a', test:n=>/SPOTIFY|NETFLIX|DISNEY|BINGE|APPLE|ICLOUD|MICROSOFT|CHATGPT|CLAUDE|PLAYSTATION|EPIDEMIC|YOUTUBE|STAN\b|KAYO|PRIME|HBO|PARAMOUNT/i.test(n) },
+  { key:'Groceries & food',    color:'#f0c040', test:n=>/SHOPPING|GROCER|WOOLW|COLES|ALDI|FOOD|YOUFOOD/i.test(n) },
+  { key:'Transport',           color:'#4dd4c0', test:n=>/FUEL|PETROL|TOLL|REGO|PARKING|UBER|OPAL/i.test(n) },
+];
+function spendCat(name) {
+  for (const c of SPEND_CATS) if (c.test(name||'')) return c.key;
+  return 'Other';
+}
+function spendCatColor(key) {
+  const c = SPEND_CATS.find(c=>c.key===key);
+  return c ? c.color : '#5a6a90';
+}
+function moEquiv(freq, amount) {
+  const f = { WEEKLY:52/12, FORTNIGHTLY:26/12, MONTHLY:1, QUARTERLY:1/3, YEARLY:1/12 }[freq];
+  return f ? amount*f : amount;
+}
+
+// Build {cat: {total, items:[{name, amt, sub}]}} for the selected view
+function spendData() {
+  const groups = {};
+  const add = (cat, name, amt, sub) => {
+    if (!amt || amt <= 0) return;
+    if (!groups[cat]) groups[cat] = { total:0, items:[] };
+    groups[cat].total += amt;
+    const ex = groups[cat].items.find(i=>i.name===name);
+    if (ex) { ex.amt += amt; } else { groups[cat].items.push({name, amt, sub:sub||''}); }
+  };
+
+  if (SPEND_VIEW === 'budget') {
+    S.bills.filter(b=>b.include).forEach(b => add(spendCat(b.name), b.name, moEquiv(b.freq,b.amount), b.freq.toLowerCase()+' '+fmt(b.amount)));
+    S.variables.forEach(v => add(spendCat(v.name), v.name, moEquiv(v.freq,v.amount), v.freq.toLowerCase()+' '+fmt(v.amount)));
+  } else {
+    const ws = addDays(today(), -SPEND_VIEW), we = today();
+    S.bills.forEach(b => (b.paidHistory||[]).forEach(h => {
+      if (h.actual >= ws && h.actual <= we) {
+        const amt = +(h.actualAmt!==undefined?h.actualAmt:(h.charged!==undefined?h.charged:h.budgeted))|| b.amount;
+        add(spendCat(b.name), b.name, amt, fmtD(h.actual)+(h.retry?' · retry':''));
+      }
+    }));
+    S.variables.forEach(v => (v.history||[]).forEach(h => {
+      if (h.date >= ws && h.date <= we) add(spendCat(v.name), v.name, +h.actual||0, fmtD(h.date));
+    }));
+    S.oneoffs.filter(o=>o.paid && o.paidDate && o.paidDate >= ws && o.paidDate <= we)
+      .forEach(o => add('One-offs', o.name, +(o.actualAmount)||o.amount, fmtD(o.paidDate)));
+    [...(S.leaks||[]), ...(S.leakArchive||[])].forEach(l => {
+      if (l.date >= ws && l.date <= we) add('Leaks / unplanned', l.category, +l.amount||0, fmtD(l.date));
+    });
+  }
+  Object.values(groups).forEach(g => g.items.sort((a,b)=>b.amt-a.amt));
+  return groups;
+}
+
+function setSpendView(v) { SPEND_VIEW = v; renderKeepScroll(); }
+function toggleSpendCat(key) { SPEND_OPEN[key] = !SPEND_OPEN[key]; renderKeepScroll(); }
+
+function insightsH() {
+  const groups = spendData();
+  const cats = Object.entries(groups).sort((a,b)=>b[1].total-a[1].total);
+  const grand = cats.reduce((s,[,g])=>s+g.total,0);
+  const maxCat = cats.length ? cats[0][1].total : 1;
+  const isBudget = SPEND_VIEW==='budget';
+
+  // Income comparison (budget view only — actual income isn't dated history)
+  const incomeMo = S.settings.incomes.reduce((s,p)=>s+moEquiv(p.cycleType||'FORTNIGHTLY', +p.amount||0),0);
+  const surplus = incomeMo - grand;
+
+  // Interest burn from loans
+  const loanRows = S.loans.filter(l=>l.current>0 && +l.rate>0)
+    .map(l=>({name:l.name, bal:l.current, rate:+l.rate, int:l.current*(+l.rate)/100/12}))
+    .sort((a,b)=>b.int-a.int);
+  const totInt = loanRows.reduce((s,l)=>s+l.int,0);
+
+  const viewBtn = (v,lbl) => `<button class="btn sm${SPEND_VIEW===v?' primary':''}" onclick="setSpendView(${typeof v==='string'?`'${v}'`:v})">${lbl}</button>`;
+
+  let bars = '';
+  if (!cats.length) {
+    bars = '<div class="empty">Nothing to show yet'+(isBudget?'':' — no payments logged in this period')+'</div>';
+  } else {
+    cats.forEach(([key,g]) => {
+      const pct = grand>0 ? Math.round(g.total/grand*100) : 0;
+      const w = Math.max(3, Math.round(g.total/maxCat*100));
+      const col = key==='Leaks / unplanned' ? 'var(--red)' : key==='One-offs' ? '#b794ff' : spendCatColor(key);
+      const open = !!SPEND_OPEN[key.replace(/[^a-z]/gi,'')];
+      bars += `<div style="padding:10px 14px;border-bottom:0.5px solid var(--border);cursor:pointer" onclick="toggleSpendCat('${key.replace(/[^a-z]/gi,'')}')">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${key} <span style="font-size:10px;color:var(--text3);font-weight:500">· ${g.items.length} item${g.items.length!==1?'s':''} ${open?'▾':'▸'}</span></div>
+          <div style="text-align:right">
+            <span style="font-family:var(--fm);font-weight:700;font-size:14px;color:var(--text)">${fmt(g.total)}</span>
+            <span style="font-size:10px;color:var(--text3);margin-left:4px">${pct}%</span>
+          </div>
+        </div>
+        <div class="pb" style="height:8px"><div class="pb-fill" style="width:${w}%;background:${col}"></div></div>
+        ${open ? `<div style="margin-top:8px">${g.items.map(i=>`
+          <div style="display:flex;justify-content:space-between;padding:5px 0 5px 10px;border-left:2px solid ${col}40;font-size:12px">
+            <span style="color:var(--text2)">${i.name}<span style="color:var(--text3);font-size:10px;margin-left:6px">${i.sub}</span></span>
+            <span style="font-family:var(--fm);color:var(--text2)">${fmt(i.amt)}</span>
+          </div>`).join('')}</div>` : ''}
+      </div>`;
+    });
+  }
+
+  return `<div class="pg-hdr">
+    <div><div class="pg-title">Spend</div><div class="pg-sub">Where the money goes</div></div>
+  </div>
+
+  <div style="display:flex;gap:6px;margin:6px 14px;flex-wrap:wrap">
+    ${viewBtn('budget','Budget /mo')}${viewBtn(30,'Last 30d')}${viewBtn(60,'Last 60d')}${viewBtn(90,'Last 90d')}
+  </div>
+
+  <div class="card card-p" style="display:grid;grid-template-columns:1fr 1fr${isBudget?' 1fr':''};gap:8px">
+    <div class="metric"><div class="m-lbl">${isBudget?'Total budget /mo':'Spent in period'}</div><div class="m-val" style="font-size:17px">${fmt(grand)}</div></div>
+    ${isBudget?`<div class="metric"><div class="m-lbl">Income /mo</div><div class="m-val g" style="font-size:17px">${fmt(incomeMo)}</div></div>
+    <div class="metric"><div class="m-lbl">${surplus>=0?'Surplus /mo':'Deficit /mo'}</div><div class="m-val ${surplus>=0?'g':''}" style="font-size:17px;${surplus<0?'color:var(--red-t)':''}">${surplus<0?'−':''}${fmt(surplus)}</div></div>`
+    :`<div class="metric"><div class="m-lbl">Per week avg</div><div class="m-val" style="font-size:17px">${fmt(grand/(SPEND_VIEW/7))}</div></div>`}
+  </div>
+
+  <div class="sec-lbl">By category — tap to expand</div>
+  <div class="card">${bars}</div>
+
+  ${loanRows.length?`<div class="sec-lbl" style="margin-top:12px">Interest burn — what debt costs you monthly</div>
+  <div class="card">
+    ${loanRows.map(l=>`<div class="row">
+      <div class="row-l"><div class="row-lbl">${l.name}</div><div class="row-sub">${fmt(l.bal)} @ ${l.rate}% p.a.</div></div>
+      <div class="row-r"><div class="row-amt" style="color:var(--amber-t)">${fmt(l.int)}/mo</div></div>
+    </div>`).join('')}
+    <div class="row" style="background:var(--bg4)">
+      <span style="font-size:13px;font-weight:700;color:var(--text)">Total interest /mo</span>
+      <span style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--red-t)">${fmt(totInt)}</span>
+    </div>
+    <div style="padding:10px 14px;font-size:11px;color:var(--text3);line-height:1.6">This is what you pay just to hold the debt — it buys nothing. Paying down the highest-rate loan first shrinks this number fastest.</div>
+  </div>`:''}
+  <div style="height:8px"></div>`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
