@@ -376,7 +376,7 @@ const STORAGE = (function() {
         const mb = applyDefaults(b, {
           id:0, name:'', freq:'MONTHLY', amount:0, lastDue:null,
           paidHistory:[], include:true, missed:false, pinned:false,
-          linkedLoanId:null, paymentPlan:null
+          linkedLoanId:null, paymentPlan:null, category:null
         });
         // Fix {} empty object instead of null for linkedLoanId (backup corruption)
         if (mb.linkedLoanId !== null && typeof mb.linkedLoanId === 'object' && !Array.isArray(mb.linkedLoanId)) {
@@ -403,7 +403,7 @@ const STORAGE = (function() {
     // Patch variable objects for new fields
     if (Array.isArray(parsed.variables)) {
       parsed.variables = parsed.variables.map(v =>
-        (function(v2){const mv=applyDefaults(v2,{id:0,name:'',freq:'WEEKLY',amount:0,due:null,include:true,paid:false,paidDate:null,actualAmount:null,history:[]});if(mv.include===undefined)mv.include=(v2.inDueList!==undefined)?v2.inDueList:true;return mv;})(v)
+        (function(v2){const mv=applyDefaults(v2,{id:0,name:'',freq:'WEEKLY',amount:0,due:null,include:true,paid:false,paidDate:null,actualAmount:null,history:[],category:null});if(mv.include===undefined)mv.include=(v2.inDueList!==undefined)?v2.inDueList:true;return mv;})(v)
       );
     }
     // Migrate actionLog
@@ -417,7 +417,7 @@ const STORAGE = (function() {
       parsed.bills = parsed.bills.map(b =>
         applyDefaults(b, { id:0, name:'', freq:'MONTHLY', amount:0, lastDue:null,
           paidHistory:[], include:true, missed:false, pinned:false, linkedLoanId:null,
-          paymentPlan:null })
+          paymentPlan:null, category:null })
       );
     }
     return parsed;
@@ -481,7 +481,7 @@ const nid = () => NID++;
 
 function blankState() {
   return { version:2, onboarded:false, theme:'dark', nid:100, lastSaved:null,
-    settings:{ householdName:'', incomes:[], sharedAllocs:[] },
+    settings:{ householdName:'', incomes:[], sharedAllocs:[], spendCats:SPEND_CATS.map(c=>({name:c.key,color:c.color})) },
     bills:[], variables:[], oneoffs:[], loans:[], goals:[], leaks:[], leakArchive:[], actionLog:[],
     _channelId:null, _syncAt:0, _syncStatus:'off' };
 }
@@ -1763,11 +1763,17 @@ const SPEND_CATS = [
   { key:'Groceries & food',    color:'#f0c040', test:n=>/SHOPPING|GROCER|WOOLW|COLES|ALDI|FOOD|YOUFOOD/i.test(n) },
   { key:'Transport',           color:'#4dd4c0', test:n=>/FUEL|PETROL|TOLL|REGO|PARKING|UBER|OPAL/i.test(n) },
 ];
-function spendCat(name) {
+function userCats() {
+  return (S && S.settings && Array.isArray(S.settings.spendCats)) ? S.settings.spendCats : [];
+}
+function spendCat(name, explicit) {
+  if (explicit && userCats().some(c=>c.name===explicit)) return explicit;
   for (const c of SPEND_CATS) if (c.test(name||'')) return c.key;
   return 'Other';
 }
 function spendCatColor(key) {
+  const u = userCats().find(c=>c.name===key);
+  if (u) return u.color;
   const c = SPEND_CATS.find(c=>c.key===key);
   return c ? c.color : '#5a6a90';
 }
@@ -1788,18 +1794,18 @@ function spendData() {
   };
 
   if (SPEND_VIEW === 'budget') {
-    S.bills.filter(b=>b.include).forEach(b => add(spendCat(b.name), b.name, moEquiv(b.freq,b.amount), b.freq.toLowerCase()+' '+fmt(b.amount)));
-    S.variables.forEach(v => add(spendCat(v.name), v.name, moEquiv(v.freq,v.amount), v.freq.toLowerCase()+' '+fmt(v.amount)));
+    S.bills.filter(b=>b.include).forEach(b => add(spendCat(b.name, b.category), b.name, moEquiv(b.freq,b.amount), b.freq.toLowerCase()+' '+fmt(b.amount)));
+    S.variables.forEach(v => add(spendCat(v.name, v.category), v.name, moEquiv(v.freq,v.amount), v.freq.toLowerCase()+' '+fmt(v.amount)));
   } else {
     const ws = addDays(today(), -SPEND_VIEW), we = today();
     S.bills.forEach(b => (b.paidHistory||[]).forEach(h => {
       if (h.actual >= ws && h.actual <= we) {
         const amt = +(h.actualAmt!==undefined?h.actualAmt:(h.charged!==undefined?h.charged:h.budgeted))|| b.amount;
-        add(spendCat(b.name), b.name, amt, fmtD(h.actual)+(h.retry?' · retry':''));
+        add(spendCat(b.name, b.category), b.name, amt, fmtD(h.actual)+(h.retry?' · retry':''));
       }
     }));
     S.variables.forEach(v => (v.history||[]).forEach(h => {
-      if (h.date >= ws && h.date <= we) add(spendCat(v.name), v.name, +h.actual||0, fmtD(h.date));
+      if (h.date >= ws && h.date <= we) add(spendCat(v.name, v.category), v.name, +h.actual||0, fmtD(h.date));
     }));
     S.oneoffs.filter(o=>o.paid && o.paidDate && o.paidDate >= ws && o.paidDate <= we)
       .forEach(o => add('One-offs', o.name, +(o.actualAmount)||o.amount, fmtD(o.paidDate)));
@@ -1813,6 +1819,32 @@ function spendData() {
 
 function setSpendView(v) { SPEND_VIEW = v; renderKeepScroll(); }
 function toggleSpendCat(key) { SPEND_OPEN[key] = !SPEND_OPEN[key]; renderKeepScroll(); }
+
+function addSpendCat() {
+  const el = $('sc-new');
+  const n = (el && el.value || '').trim();
+  if (!n) { alert('Enter a category name.'); return; }
+  if (userCats().some(c=>c.name.toLowerCase()===n.toLowerCase())) { alert('That category already exists.'); return; }
+  const palette = ['#4a9fff','#8b5cf6','#0fb8a0','#e09a1a','#e05555','#2ec87a','#f0c040','#4dd4c0','#b794ff'];
+  S.settings.spendCats.push({ name:n, color:palette[S.settings.spendCats.length % palette.length] });
+  autoSave(); renderKeepScroll();
+}
+
+function delSpendCat(i) {
+  const c = S.settings.spendCats[i];
+  if (!c) return;
+  const used = S.bills.filter(b=>b.category===c.name).length
+             + S.variables.filter(v=>v.category===c.name).length;
+  if (!confirm('Remove category "'+c.name+'"?'+(used?'\n\n'+used+' item'+(used>1?'s':'')+' assigned to it will fall back to Auto.':''))) return;
+  S.bills.forEach(b=>{ if(b.category===c.name) b.category=null; });
+  S.variables.forEach(v=>{ if(v.category===c.name) v.category=null; });
+  S.settings.spendCats.splice(i,1);
+  autoSave(); renderKeepScroll();
+}
+
+function setSpendCatColor(i, col) {
+  if (S.settings.spendCats[i]) { S.settings.spendCats[i].color = col; autoSave(); renderKeepScroll(); }
+}
 
 function insightsH() {
   const groups = spendData();
@@ -1890,6 +1922,25 @@ function insightsH() {
     </div>
     <div style="padding:10px 14px;font-size:11px;color:var(--text3);line-height:1.6">This is what you pay just to hold the debt — it buys nothing. Paying down the highest-rate loan first shrinks this number fastest.</div>
   </div>`:''}
+
+  <div class="sec-lbl" style="margin-top:12px">Manage categories</div>
+  <div class="card">
+    ${userCats().map((c,i)=>{
+      const used = S.bills.filter(b=>b.category===c.name).length + S.variables.filter(v=>v.category===c.name).length;
+      return `<div class="row">
+        <div class="row-l" style="display:flex;align-items:center;gap:10px">
+          <div style="width:12px;height:12px;border-radius:50%;background:${c.color};flex-shrink:0"></div>
+          <div><div class="row-lbl">${c.name}</div><div class="row-sub">${used?used+' assigned':'auto-detect only'}</div></div>
+        </div>
+        <button class="btn-icon" onclick="delSpendCat(${i})" style="color:var(--red-t)" title="Remove">✕</button>
+      </div>`;
+    }).join('')}
+    <div style="display:flex;gap:8px;padding:12px 14px;border-top:0.5px solid var(--border)">
+      <input id="sc-new" type="text" placeholder="New category name" style="flex:1">
+      <button class="btn sm primary" onclick="addSpendCat()" style="flex-shrink:0">+ Add</button>
+    </div>
+    <div style="padding:0 14px 12px;font-size:11px;color:var(--text3);line-height:1.6">Assign bills and variables to a category from their ✎ Edit screen. Unassigned items are auto-categorised by name.</div>
+  </div>
   <div style="height:8px"></div>`;
 }
 
@@ -2118,6 +2169,13 @@ function billModal(id) {
       <div class="ff"><label>Last due date</label><input id="m-d" type="date" value="${b.lastDue||today()}"></div>
       <div class="ff"><label>Include in totals</label><select id="m-i"><option value="true"${b.include?' selected':''}>Yes</option><option value="false"${!b.include?' selected':''}>No</option></select></div>
     </div>
+    <div class="ff"><label>Spend category</label>
+      <select id="m-cat">
+        <option value="">Auto — ${spendCat(b.name||'')}</option>
+        ${userCats().map(c=>`<option value="${c.name}"${b.category===c.name?' selected':''}>${c.name}</option>`).join('')}
+      </select>
+      <div style="font-size:11px;color:var(--text3);margin-top:3px">Used in the Spend tab. Auto picks based on the bill name.</div>
+    </div>
     ${S.loans.length?`<div class="ff" style="margin-bottom:0">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="checkbox" id="m-isl" ${b.linkedLoanId?'checked':''} onchange="document.getElementById('m-ll-wrap').style.display=this.checked?'block':'none'">
@@ -2133,8 +2191,9 @@ function billModal(id) {
     const name=$('m-n').value.trim();if(!name)return;
     const isLoan=$('m-isl')&&$('m-isl').checked;
     const linkedLoanId=isLoan&&$('m-ll')?+$('m-ll').value||null:null;
-    if(id){const bx=S.bills.find(x=>x.id===id);bx.name=name;bx.freq=$('m-f').value;bx.amount=+$('m-a').value;if($('m-d').value)bx.lastDue=$('m-d').value;bx.include=$('m-i').value==='true';bx.linkedLoanId=linkedLoanId;}
-    else S.bills.push({id:nid(),name,freq:$('m-f').value,amount:+$('m-a').value,lastDue:$('m-d').value||today(),paidHistory:[],include:$('m-i').value==='true',missed:false,pinned:false,linkedLoanId});
+    const cat=$('m-cat')?($('m-cat').value||null):null;
+    if(id){const bx=S.bills.find(x=>x.id===id);bx.name=name;bx.freq=$('m-f').value;bx.amount=+$('m-a').value;if($('m-d').value)bx.lastDue=$('m-d').value;bx.include=$('m-i').value==='true';bx.linkedLoanId=linkedLoanId;bx.category=cat;}
+    else S.bills.push({id:nid(),name,freq:$('m-f').value,amount:+$('m-a').value,lastDue:$('m-d').value||today(),paidHistory:[],include:$('m-i').value==='true',missed:false,pinned:false,linkedLoanId,category:cat});
     autoSave();renderKeepScroll();
   });
 }
@@ -2376,22 +2435,28 @@ function varModal(id){
       <div class="ff"><label>Frequency</label><select id="m-vf">${['WEEKLY','FORTNIGHTLY','MONTHLY'].map(f=>`<option${v.freq===f?' selected':''}>${f}</option>`).join('')}</select></div>
       <div class="ff"><label>Budget this cycle ($)</label><input id="m-va" type="number" value="${v.amount}" placeholder="0"></div>
     </div>
-    <div class="ff" style="margin-bottom:0">
-      <label>Due date this cycle</label>
+    <div class="ff"><label>Due date this cycle</label>
       <input id="m-vdue" type="date" value="${v.due||today()}">
       <div style="font-size:11px;color:var(--text3);margin-top:3px">Update each cycle. History is never affected.</div>
+    </div>
+    <div class="ff" style="margin-bottom:0"><label>Spend category</label>
+      <select id="m-vcat">
+        <option value="">Auto — ${spendCat(v.name||'')}</option>
+        ${userCats().map(c=>`<option value="${c.name}"${v.category===c.name?' selected':''}>${c.name}</option>`).join('')}
+      </select>
     </div>
     ${avgActual!==null?('<div style="margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--text2)">Average actual: <strong style="color:var(--text)">'+fmt(avgActual)+'</strong> over '+hist.length+' logs</div>'):''}`,
   ()=>{
     const name=$('m-vn').value.trim();if(!name)return;
     const due=$('m-vdue').value||today();
     const amount=+$('m-va').value||0;
+    const vcat=$('m-vcat')?($('m-vcat').value||null):null;
     if(id){
       const vx=S.variables.find(x=>x.id===id);
-      vx.name=name;vx.freq=$('m-vf').value;vx.amount=amount;vx.due=due;
+      vx.name=name;vx.freq=$('m-vf').value;vx.amount=amount;vx.due=due;vx.category=vcat;
       if(vx.paid&&vx.paidDate&&due!==vx.paidDate){vx.paid=false;vx.include=true;vx.actualAmount=null;}
     } else {
-      S.variables.push({id:nid(),name,freq:$('m-vf').value,amount,due,include:true,paid:false,paidDate:null,actualAmount:null,history:[]});
+      S.variables.push({id:nid(),name,freq:$('m-vf').value,amount,due,include:true,paid:false,paidDate:null,actualAmount:null,history:[],category:vcat});
     }
     autoSave();renderKeepScroll();
   });
@@ -2921,6 +2986,11 @@ function fixCorruptedData() {
 function init(){
   const saved=STORAGE.load();S=saved||blankState();NID=S.nid||100;
   fixCorruptedData();
+
+  // Seed user-editable spend categories from defaults (once)
+  if(!Array.isArray(S.settings.spendCats) || !S.settings.spendCats.length){
+    S.settings.spendCats = SPEND_CATS.map(c=>({name:c.key, color:c.color}));
+  }
 
   // Migration: old model used anchorDate+cycleType, new model uses cycleStart+cycleEnd
   if(Array.isArray(S.settings.incomes)){
